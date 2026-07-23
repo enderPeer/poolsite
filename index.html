@@ -244,6 +244,58 @@
       1.825.000 × (1 + 0,9 + 0,81 + …) = 1.825.000 × 10 = <strong>18.250.000</strong>.
       Der Grenzwert der Ausschüttung entspricht exakt der Gesamtzahl der Anteile — es kann nie mehr Token geben, als Anteile existieren.
     </div>
+
+    <div style="margin-top:64px">
+      <div class="kicker">Das Punktesystem</div>
+      <h2>So werden die 5.000 Token pro Tag verteilt</h2>
+      <p class="lead">
+        Die tägliche Ausschüttung folgt keinem simplen Aktivitätszähler, sondern einem manipulationssicheren
+        Standing-System (<em>Revenue-Anchored Closure</em>): Wirtschaftliches Gewicht muss durch echten,
+        unwiderruflichen Einsatz verdient werden — Mitmachen bleibt trotzdem für alle kostenlos.
+      </p>
+
+      <div class="grid-3">
+        <div class="card">
+          <div class="num">1</div>
+          <h3>Einsatz (Commitment B)</h3>
+          <p>Nur Geld, das unwiderruflich auf der Plattform ausgegeben wurde — Boosts, bezahlte Aktionen, Gebühren — zählt als Einsatz. Erstattungen, Promo-Guthaben und empfangene Transfers zählen nie.</p>
+        </div>
+        <div class="card">
+          <div class="num">2</div>
+          <h3>Rate (r = B / N)</h3>
+          <p>Dein Einsatz geteilt durch deine Aktionen. Wer viel postet, ohne etwas beizutragen, verwässert die eigene Rate — Spam bestraft sich selbst.</p>
+        </div>
+        <div class="card">
+          <div class="num">3</div>
+          <h3>Standing (α) &amp; Vouches</h3>
+          <p>Dein Standing ist der gewichtete Schnitt aus deiner Rate und den Raten deiner Fürsprecher (einstufige, widerrufbare Vouches). Ohne eigenen Einsatz bleibt Standing exakt 0 — egal wie viele Vouches.</p>
+        </div>
+        <div class="card">
+          <div class="num">4</div>
+          <h3>Das Gate (α̂ ≥ ρ)</h3>
+          <p>Nur wer die Standing-Schwelle erreicht, trägt wirtschaftliches Gewicht. Lesen, Posten und Interagieren bleibt darunter voll möglich — nur ohne Einfluss auf die Token-Verteilung.</p>
+        </div>
+        <div class="card">
+          <div class="num">5</div>
+          <h3>Gewichtete Interaktionen (ω)</h3>
+          <p>Jede Interaktion auf deinen Inhalten zählt: Interaktionstyp × abnehmende Erträge bei Wiederholung × Standing des Interagierenden. Interaktionen von Konten ohne Standing zählen 0.</p>
+        </div>
+        <div class="card">
+          <div class="num">6</div>
+          <h3>Dein Tagesanteil</h3>
+          <p>Am Tagesende (00:00 UTC) wird verteilt: <strong>Deine Token = 5.000 × dein Gewicht ÷ Netzwerk-Gesamtgewicht.</strong> Deterministisch, veröffentlicht und für jeden nachrechenbar.</p>
+        </div>
+      </div>
+
+      <div class="highlight-box">
+        <strong>Warum das System nicht ausgetrickst werden kann:</strong><br>
+        <em>Sybil-Lockout</em> — beliebig viele Fake-Konten ohne Einsatz haben zusammen exakt null Gewicht.
+        <em>No Internal Lift</em> — ein Cluster, der sich gegenseitig voucht, kann sein Standing nicht über den eigenen Einsatz heben.
+        <em>Round-Trip-Schutz</em> — Geld im Kreis zu schicken erzeugt Commitment nur in Höhe des echten Verlusts.
+        <em>Farming Bound</em> — eine tägliche Obergrenze garantiert mathematisch, dass Belohnungs-Farming immer mehr kostet, als es einbringt (κ&nbsp;&lt;&nbsp;1).
+        Anti-Spam-Erkennung kann Auszahlungen nur anhalten, nie erzeugen oder umleiten.
+      </div>
+    </div>
   </div>
 </section>
 

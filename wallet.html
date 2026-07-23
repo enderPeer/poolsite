@@ -37,6 +37,30 @@
       </div>
     </div>
 
+    <div class="chart-card">
+      <h3>Dein Standing — das Punktesystem</h3>
+      <div class="hint">Bestimmt deinen Anteil an den 5.000 Token pro Tag: Einsatz → Rate → Standing → Gate → Gewicht</div>
+      <div class="stats" style="margin-bottom:0">
+        <div class="stat">
+          <div class="v" id="st-b">—</div>
+          <div class="l">Einsatz (Commitment B)</div>
+        </div>
+        <div class="stat">
+          <div class="v" id="st-n">—</div>
+          <div class="l">Aktionen (N)</div>
+        </div>
+        <div class="stat">
+          <div class="v aqua" id="st-r">—</div>
+          <div class="l">Rate (r = B ÷ N)</div>
+        </div>
+        <div class="stat">
+          <div class="v" id="st-alpha">—<span class="delta" id="st-gate"></span></div>
+          <div class="l">Standing (α̂) &amp; Gate (Schwelle ρ = 1,0)</div>
+        </div>
+      </div>
+      <div class="hint" id="st-explain" style="margin-top:14px; margin-bottom:0"></div>
+    </div>
+
     <div class="stats">
       <div class="stat">
         <div class="v aqua" id="s-circ">—</div>
@@ -58,7 +82,7 @@
 
     <div class="chart-card">
       <h3>Deine Token pro Tag</h3>
-      <div class="hint">Tägliche Ausschüttung an dich — letzte 30 Tage</div>
+      <div class="hint">Tägliche Ausschüttung nach Punktesystem (5.000 × dein Gewicht ÷ Netzwerk-Gewicht) — letzte 30 Tage</div>
       <svg id="chart-earn" viewBox="0 0 900 260"></svg>
     </div>
 
@@ -148,6 +172,33 @@ function init() {
   deltaEl.className = 'delta ' + (priceDelta >= 0 ? 'up' : 'down');
   document.getElementById('s-mcap').textContent = fmtEur(circulating * price, 0);
   document.getElementById('s-fdv').textContent = fmtEur(TOTAL_SUPPLY * price, 0);
+
+  // Standing Card (Demo): Einsatz -> Rate -> Standing -> Gate (Revenue-Anchored Closure, vereinfacht ohne Vouches)
+  var NU = 0.10, RHO = 1.0;
+  var stRand = mulberry32(strSeed('standing:' + PS.sessionKey()));
+  var ownPosts = PS.loadPosts().filter(function (p) { return p.author === PS.sessionKey(); }).length;
+  var actionsN = Math.round(40 + stRand() * 260) + ownPosts;
+  var commitB = Math.round((5 + stRand() * 45) * 100) / 100;
+  var rate = commitB / Math.max(actionsN, 1);
+  var alphaHat = rate / NU;
+  if (alphaHat < RHO) {
+    // Demo-Kohärenz: die Beispieldaten zeigen ein Konto mit offenem Gate
+    commitB = Math.round(actionsN * NU * (1.1 + stRand()) * 100) / 100;
+    rate = commitB / Math.max(actionsN, 1);
+    alphaHat = rate / NU;
+  }
+  var gateOpen = alphaHat >= RHO;
+
+  document.getElementById('st-b').textContent = fmtEur(commitB);
+  document.getElementById('st-n').textContent = fmt(actionsN);
+  document.getElementById('st-r').textContent = fmtEur(rate, 3);
+  document.getElementById('st-alpha').firstChild.textContent = alphaHat.toFixed(2).replace('.', ',');
+  var gateEl = document.getElementById('st-gate');
+  gateEl.textContent = gateOpen ? '✓ Gate offen' : '✗ unter Schwelle';
+  gateEl.className = 'delta ' + (gateOpen ? 'up' : 'down');
+  document.getElementById('st-explain').textContent = gateOpen
+    ? 'Dein Gate ist offen: Deine Interaktionen zählen mit Standing-Kernel in die Verteilung. Gestern ergab das 5.000 × dein Gewicht ÷ Netzwerk-Gewicht = +' + fmt(yesterdayEarn) + ' PST. Jede Aktion ohne Einsatz senkt deine Rate — Qualität schlägt Masse.'
+    : 'Dein Standing liegt unter der Schwelle ρ = 1,0: Du kannst kostenlos posten und interagieren, trägst aber kein wirtschaftliches Gewicht bei der Token-Verteilung.';
 
   // Chart 1: Token pro Tag (letzte 30 Tage)
   (function () {
