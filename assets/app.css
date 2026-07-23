@@ -285,6 +285,7 @@ input:focus, textarea:focus { border-color: var(--aqua); }
   .stat { padding: 14px; }
   .stat .v { font-size: 1.05rem; }
   .stat .l { font-size: .76rem; }
+  .stat .delta { display: block; margin-left: 0; margin-top: 3px; }
 
   .chart-card { padding: 16px; }
 
