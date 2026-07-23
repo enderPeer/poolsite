@@ -15,9 +15,7 @@
     <a class="back" href="index.html">← Zurück zur Website</a>
   </div>
 </header>
-<div class="beta-banner">
-  ⚠️ Test-Wallet: Alle Werte sind simulierte Demo-Daten — es existieren noch keine echten Token, Preise oder Börsen.
-</div>
+<div class="beta-banner" id="mode-banner">Verbinde…</div>
 <nav id="app-nav" class="appnav" style="display:none"></nav>
 
 <main>
@@ -139,6 +137,7 @@ function grid(svg, W, H, padL, padR, padT, padB, maxV, fmtFn) {
 function init() {
   var rec = PS.me();
   if (!rec) { location.href = 'app.html'; return; }
+  PS.modeBanner();
   PS.renderNav('wallet');
 
   var LAUNCH = new Date('2026-01-01T00:00:00');
@@ -159,7 +158,7 @@ function init() {
   var priceYesterday = prices[prices.length - 2] || price;
   var priceDelta = (price - priceYesterday) / priceYesterday * 100;
 
-  var earnRand = mulberry32(strSeed(PS.sessionKey()));
+  var earnRand = mulberry32(strSeed(rec.key));
   var earnings = [];
   for (var d2 = 0; d2 < daysSinceLaunch; d2++) {
     earnings.push(Math.round(6 + earnRand() * 32));
@@ -180,14 +179,13 @@ function init() {
   document.getElementById('s-fdv').textContent = fmtEur(TOTAL_SUPPLY * price, 0);
 
   // Stable-Guthaben & echter Burn aus bezahlten Aktionen
-  var eco = PS.econ(rec);
-  document.getElementById('w-credits').textContent = PS.fmtEur(eco.credits);
-  document.getElementById('w-burn').textContent = PS.fmtEur(eco.burn);
+  document.getElementById('w-credits').textContent = PS.fmtEur(rec.credits);
+  document.getElementById('w-burn').textContent = PS.fmtEur(rec.burn);
 
   // Standing Card: echte Werte (Revenue-Anchored Closure, vereinfacht ohne Vouches)
   var NU = 0.10, RHO = 1.0;
-  var commitB = eco.burn;
-  var actionsN = eco.actions;
+  var commitB = rec.burn;
+  var actionsN = rec.actions;
   var rate = commitB / Math.max(actionsN, 1);
   var alphaHat = rate / NU;
   var gateOpen = actionsN > 0 && alphaHat >= RHO;
@@ -265,13 +263,15 @@ function init() {
 }
 
 function demoTopUp() {
-  PS.topUp(10);
-  var eco = PS.econ(PS.me());
-  document.getElementById('w-credits').textContent = PS.fmtEur(eco.credits);
-  PS.renderNav('wallet');
+  PS.topUp().then(function (me) {
+    document.getElementById('w-credits').textContent = PS.fmtEur(me.credits);
+    PS.renderNav('wallet');
+  });
 }
 
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', function () {
+  PS.init().then(init);
+});
 </script>
 
 </body>

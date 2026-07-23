@@ -15,9 +15,7 @@
     <a class="back" href="index.html">← Zurück zur Website</a>
   </div>
 </header>
-<div class="beta-banner">
-  ⚠️ Prototyp-Version: Dein Konto wird nur lokal in diesem Browser gespeichert. Echte Konten &amp; Token-Ausschüttung folgen mit dem offiziellen Launch.
-</div>
+<div class="beta-banner" id="mode-banner">Verbinde…</div>
 <nav id="app-nav" class="appnav" style="display:none"></nav>
 
 <main class="center">
@@ -111,16 +109,14 @@
 
     <div class="msg" id="msg-profile"></div>
     <a class="btn" style="margin-top:20px" href="wallet.html">Wallet öffnen →</a>
-    <button class="btn secondary" style="margin-top:12px" onclick="logout()">Abmelden</button>
-    <button class="btn danger-ghost" style="margin-top:12px" onclick="deleteAccount()" id="btn-delete">Konto löschen</button>
+    <button class="btn secondary" style="margin-top:12px" onclick="doLogout()">Abmelden</button>
+    <button class="btn danger-ghost" style="margin-top:12px" onclick="doDelete()" id="btn-delete">Konto löschen</button>
   </div>
 
 </main>
 
 <script src="assets/app-core.js"></script>
 <script>
-var USER_RE = /^[A-Za-z0-9][A-Za-z0-9._]{1,29}$/;
-
 function showTab(which) {
   document.getElementById('tab-login').classList.toggle('active', which === 'login');
   document.getElementById('tab-register').classList.toggle('active', which === 'register');
@@ -134,114 +130,47 @@ function setMsg(id, text, type) {
   el.textContent = text || '';
 }
 
-function validateNewUser(user, pass, msgId) {
-  if (!USER_RE.test(user)) {
-    setMsg(msgId, 'Nutzername: 2–30 Zeichen, beginnt mit Buchstabe/Zahl; erlaubt sind Buchstaben, Zahlen, Punkt, Unterstrich.', 'error');
-    return false;
-  }
-  if (pass.length < 4) {
-    setMsg(msgId, 'Das Passwort muss mindestens 4 Zeichen haben.', 'error');
-    return false;
-  }
-  if (PS.loadUsers()[user.toLowerCase()]) {
-    setMsg(msgId, 'Dieser Nutzername ist bereits vergeben.', 'error');
-    return false;
-  }
-  return true;
-}
-
 function doRegister(ev) {
   ev.preventDefault();
-  var user = document.getElementById('rg-user').value.trim();
-  var pass = document.getElementById('rg-pass').value;
-  var email = document.getElementById('rg-email').value.trim();
-  if (!validateNewUser(user, pass, 'msg-register')) return false;
-
-  var key = user.toLowerCase();
-  PS.hash(key + ':' + pass).then(function (ph) {
-    var users = PS.loadUsers();
-    users[key] = {
-      name: user, passHash: ph, email: email || null, notifyConsent: !!email,
-      createdAt: new Date().toISOString(), avatar: null
-    };
-    PS.saveUsers(users);
-    PS.setSession(key);
-    render();
-  });
+  PS.register(
+    document.getElementById('rg-user').value.trim(),
+    document.getElementById('rg-pass').value,
+    document.getElementById('rg-email').value.trim()
+  ).then(render).catch(function (e) { setMsg('msg-register', e.message, 'error'); });
   return false;
 }
 
 function doLogin(ev) {
   ev.preventDefault();
-  var user = document.getElementById('li-user').value.trim().toLowerCase();
-  var pass = document.getElementById('li-pass').value;
-  var rec = PS.loadUsers()[user];
-  PS.hash(user + ':' + pass).then(function (ph) {
-    if (!rec || rec.guest || rec.passHash !== ph) {
-      setMsg('msg-login', 'Nutzername oder Passwort ist falsch.', 'error');
-      return;
-    }
-    PS.setSession(user);
-    render();
-  });
+  PS.login(
+    document.getElementById('li-user').value.trim(),
+    document.getElementById('li-pass').value
+  ).then(render).catch(function (e) { setMsg('msg-login', e.message, 'error'); });
   return false;
 }
 
 function doGuest() {
-  PS.guestLogin();
-  render();
+  PS.guest().then(render).catch(function (e) { setMsg('msg-login', e.message, 'error'); });
 }
 
 function doUpgrade(ev) {
   ev.preventDefault();
-  var user = document.getElementById('ug-user').value.trim();
-  var pass = document.getElementById('ug-pass').value;
-  var email = document.getElementById('ug-email').value.trim();
-  if (!validateNewUser(user, pass, 'msg-upgrade')) return false;
-
-  var newKey = user.toLowerCase();
-  PS.hash(newKey + ':' + pass).then(function (ph) {
-    var users = PS.loadUsers();
-    var guest = users[PS.GUEST_KEY] || {};
-    users[newKey] = {
-      name: user, passHash: ph, email: email || null, notifyConsent: !!email,
-      createdAt: guest.createdAt || new Date().toISOString(),
-      avatar: guest.avatar || null,
-      credits: guest.credits, burn: guest.burn, actions: guest.actions
-    };
-    delete users[PS.GUEST_KEY];
-    PS.saveUsers(users);
-
-    // Beiträge und Likes des Gastes übernehmen
-    var posts = PS.loadPosts();
-    posts.forEach(function (p) {
-      if (p.author === PS.GUEST_KEY) p.author = newKey;
-      var i = (p.likes || []).indexOf(PS.GUEST_KEY);
-      if (i >= 0) p.likes[i] = newKey;
-    });
-    PS.savePosts(posts);
-
-    PS.setSession(newKey);
+  PS.upgrade(
+    document.getElementById('ug-user').value.trim(),
+    document.getElementById('ug-pass').value,
+    document.getElementById('ug-email').value.trim()
+  ).then(function (me) {
     render();
-    setMsg('msg-profile', 'Willkommen, ' + user + '! Dein Konto ist jetzt aktiv. ✓', 'ok');
-  });
+    setMsg('msg-profile', 'Willkommen, ' + me.name + '! Dein Konto ist jetzt aktiv. ✓', 'ok');
+  }).catch(function (e) { setMsg('msg-upgrade', e.message, 'error'); });
   return false;
 }
 
-function logout() {
-  PS.setSession(null);
-  render();
-}
+function doLogout() { PS.logout().then(render); }
 
-function deleteAccount() {
+function doDelete() {
   if (!confirm('Konto wirklich endgültig löschen?')) return;
-  var key = PS.sessionKey();
-  var users = PS.loadUsers();
-  delete users[key];
-  PS.saveUsers(users);
-  PS.savePosts(PS.loadPosts().filter(function (p) { return p.author !== key; }));
-  PS.setSession(null);
-  render();
+  PS.deleteAccount().then(render);
 }
 
 function uploadAvatar(input) {
@@ -261,19 +190,10 @@ function uploadAvatar(input) {
       var ctx = canvas.getContext('2d');
       var min = Math.min(img.width, img.height);
       ctx.drawImage(img, (img.width - min) / 2, (img.height - min) / 2, min, min, 0, 0, size, size);
-      var dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-
-      var users = PS.loadUsers();
-      var rec = users[PS.sessionKey()];
-      if (!rec) return;
-      rec.avatar = dataUrl;
-      try {
-        PS.saveUsers(users);
+      PS.setAvatar(canvas.toDataURL('image/jpeg', 0.85)).then(function () {
         setMsg('msg-profile', 'Profilbild aktualisiert. ✓', 'ok');
-      } catch (err) {
-        setMsg('msg-profile', 'Bild zu groß für den lokalen Speicher.', 'error');
-      }
-      render();
+        render();
+      }).catch(function (err) { setMsg('msg-profile', err.message, 'error'); });
     };
     img.src = e.target.result;
   };
@@ -282,6 +202,7 @@ function uploadAvatar(input) {
 }
 
 function render() {
+  PS.modeBanner();
   var rec = PS.me();
   document.getElementById('view-auth').style.display = rec ? 'none' : '';
   document.getElementById('view-profile').style.display = rec ? '' : 'none';
@@ -289,10 +210,10 @@ function render() {
   if (!rec) return;
 
   PS.renderNav('profile');
-  var guest = PS.isGuest();
+  var guest = !!rec.guest;
   document.getElementById('guest-box').style.display = guest ? '' : 'none';
   document.getElementById('pf-name').textContent = rec.name;
-  document.getElementById('pf-sub').textContent = guest ? 'Gastmodus — nicht dauerhaft gesichert' : 'Dein PoolSite-Profil';
+  document.getElementById('pf-sub').textContent = guest ? 'Gastmodus — Konto noch nicht gesichert' : 'Dein PoolSite-Profil';
   document.getElementById('pf-user').textContent = guest ? 'Gast (ohne Konto)' : '@' + rec.name;
   document.getElementById('pf-email').textContent = rec.email || 'nicht angegeben';
   document.getElementById('pf-notify').innerHTML = rec.notifyConsent
@@ -300,16 +221,15 @@ function render() {
     : '<span class="tag off">deaktiviert</span>';
   document.getElementById('pf-since').textContent =
     new Date(rec.createdAt).toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' });
-  var eco = PS.econ(rec);
-  document.getElementById('pf-credits').textContent = PS.fmtEur(eco.credits);
-  document.getElementById('pf-burn').textContent = PS.fmtEur(eco.burn) + ' (' + eco.actions + ' Aktionen)';
+  document.getElementById('pf-credits').textContent = PS.fmtEur(rec.credits);
+  document.getElementById('pf-burn').textContent = PS.fmtEur(rec.burn) + ' (' + rec.actions + ' Aktionen)';
   document.getElementById('btn-delete').textContent = guest ? 'Gast-Daten löschen' : 'Konto löschen';
-
-  var avatar = document.getElementById('avatar');
-  avatar.innerHTML = PS.avatarHtml(rec);
+  document.getElementById('avatar').innerHTML = PS.avatarHtml(rec);
 }
 
-document.addEventListener('DOMContentLoaded', render);
+document.addEventListener('DOMContentLoaded', function () {
+  PS.init().then(render);
+});
 </script>
 
 </body>

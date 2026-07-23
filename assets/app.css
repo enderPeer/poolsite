@@ -41,6 +41,10 @@ header {
   background: rgba(251,191,36,.08); border-bottom: 1px solid rgba(251,191,36,.2);
   color: #fcd34d; font-size: .82rem; text-align: center; padding: 8px 16px;
 }
+.beta-banner.mode-server {
+  background: rgba(52,211,153,.08); border-bottom: 1px solid rgba(52,211,153,.25);
+  color: #6ee7b7;
+}
 
 /* App-Navigation */
 .appnav { background: var(--bg-soft); border-bottom: 1px solid var(--line); }
