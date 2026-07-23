@@ -36,7 +36,7 @@
         <div class="big" style="font-size:1.7rem" id="w-credits">—</div>
         <div class="eur">Burn gesamt: <span class="burn-chip" id="w-burn">—</span> 🔥</div>
       </div>
-      <div style="text-align:right">
+      <div class="bc-right">
         <div class="label">Gestern verdient</div>
         <div class="big" style="font-size:1.5rem" id="w-yesterday">—</div>
         <button class="btn small secondary" style="margin-top:10px" onclick="demoTopUp()">Demo: +10 € aufladen</button>
@@ -89,13 +89,13 @@
     <div class="chart-card">
       <h3>Deine Token pro Tag</h3>
       <div class="hint">Tägliche Ausschüttung nach Punktesystem (5.000 × dein Gewicht ÷ Netzwerk-Gewicht) — letzte 30 Tage</div>
-      <svg id="chart-earn" viewBox="0 0 900 260"></svg>
+      <div class="chart-scroll"><svg id="chart-earn" viewBox="0 0 900 260"></svg></div>
     </div>
 
     <div class="chart-card">
       <h3>Preis pro Token</h3>
       <div class="hint">Simulierter Preisverlauf seit Launch (Demo) — in Euro</div>
-      <svg id="chart-price" viewBox="0 0 900 260"></svg>
+      <div class="chart-scroll"><svg id="chart-price" viewBox="0 0 900 260"></svg></div>
     </div>
   </div>
 </main>

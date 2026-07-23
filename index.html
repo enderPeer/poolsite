@@ -44,7 +44,7 @@
   }
   nav a { color: var(--muted); text-decoration: none; margin-left: 22px; font-size: .95rem; }
   nav a:hover { color: var(--text); }
-  @media (max-width: 720px) { nav .nav-links a:not(.app-link) { display: none; } }
+  @media (max-width: 720px) { nav.nav-links a:not(.app-link) { display: none; } }
   nav a.app-link {
     padding: 8px 18px; border-radius: 10px; font-weight: 700;
     background: linear-gradient(90deg, var(--aqua), var(--aqua-deep)); color: #04202a;
@@ -150,6 +150,48 @@
   }
   .disclaimer strong { color: var(--text); }
   .foot-row { display: flex; justify-content: space-between; align-items: center; margin-top: 32px; flex-wrap: wrap; gap: 12px; color: var(--muted); font-size: .88rem; }
+
+  /* Charts: auf kleinen Screens horizontal scrollen statt schrumpfen */
+  .chart-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .chart-scroll svg { min-width: 680px; }
+
+  /* ============ Mobile ============ */
+  @media (max-width: 640px) {
+    .wrap { padding: 0 16px; }
+    .nav { height: 56px; }
+    .logo { font-size: 1.05rem; }
+    nav a { margin-left: 12px; }
+    nav a.app-link { padding: 7px 14px; font-size: .88rem; }
+
+    .hero { padding: 56px 0 48px; }
+    .hero p.sub { font-size: 1rem; }
+    .badge { font-size: .72rem; padding: 5px 12px; }
+    .cta-row { flex-direction: column; align-items: stretch; }
+    .btn { text-align: center; }
+
+    section { padding: 48px 0; }
+    .lead { font-size: .97rem; }
+
+    .stats { grid-template-columns: 1fr 1fr; gap: 12px; }
+    .stat { padding: 16px; }
+    .stat .v { font-size: 1.25rem; }
+    .stat .l { font-size: .78rem; }
+
+    .card { padding: 20px; }
+    .chart-card { padding: 16px; }
+    .highlight-box { padding: 18px 20px; font-size: .92rem; }
+
+    .timeline { padding-left: 22px; }
+    .tl-item::before { left: -31px; width: 13px; height: 13px; }
+
+    .disclaimer { padding: 18px 20px; font-size: .78rem; }
+    .foot-row { flex-direction: column; align-items: flex-start; }
+  }
+
+  @media (max-width: 380px) {
+    .hero h1 { font-size: 1.75rem; }
+    .stat .v { font-size: 1.1rem; }
+  }
 </style>
 </head>
 <body>
@@ -231,7 +273,7 @@
     <div class="chart-card">
       <h3>Emissionsplan</h3>
       <div class="hint">Jährliche Ausschüttung (Balken) und kumulierte Token (Linie) — Jahre 1–15</div>
-      <svg id="emissionChart" viewBox="0 0 900 360" role="img" aria-label="Diagramm: jährliche und kumulierte Token-Emission"></svg>
+      <div class="chart-scroll"><svg id="emissionChart" viewBox="0 0 900 360" role="img" aria-label="Diagramm: jährliche und kumulierte Token-Emission"></svg></div>
       <div class="legend">
         <span class="l-bar">Jährliche Emission</span>
         <span class="l-line">Kumuliert (Grenzwert: 18,25 Mio.)</span>

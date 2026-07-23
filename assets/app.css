@@ -250,3 +250,59 @@ input:focus, textarea:focus { border-color: var(--aqua); }
 
 /* Burn-Anzeige */
 .burn-chip { color: var(--gold); font-weight: 600; }
+
+/* Charts: auf kleinen Screens horizontal scrollen statt schrumpfen */
+.chart-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.chart-scroll svg { min-width: 640px; }
+
+/* Balance-Karte: Spalten */
+.balance-card .bc-right { text-align: right; }
+
+/* ============ Mobile ============ */
+@media (max-width: 640px) {
+  .wrap { padding: 0 16px; }
+  main { padding: 24px 0 48px; }
+  main.center { padding: 24px 12px 48px; }
+
+  .nav { height: 56px; }
+  .nav a.back { font-size: .85rem; }
+  .logo { font-size: 1.05rem; }
+
+  .appnav-inner { height: 48px; gap: 4px; }
+  .appnav-tab { padding: 7px 11px; font-size: .86rem; }
+  .appnav-credits { padding: 6px 10px; font-size: .8rem; }
+  .appnav-post { padding: 7px 12px; font-size: .84rem; }
+
+  .panel { padding: 24px 18px; }
+  .page-title { font-size: 1.35rem; }
+  .page-sub { font-size: .92rem; margin-bottom: 20px; }
+
+  .balance-card { flex-direction: column; align-items: stretch; padding: 20px; gap: 18px; }
+  .balance-card .bc-right { text-align: left; }
+  .balance-card .big { font-size: 1.7rem; }
+
+  .stats { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat { padding: 14px; }
+  .stat .v { font-size: 1.05rem; }
+  .stat .l { font-size: .76rem; }
+
+  .chart-card { padding: 16px; }
+
+  .profile-head .avatar-wrap, .profile-head .avatar { width: 100px; height: 100px; }
+  .profile-head .avatar { font-size: 2.2rem; }
+
+  .composer { padding: 14px; gap: 10px; }
+  .composer .avatar-sm { width: 38px; height: 38px; }
+  .post { padding: 16px; }
+  .post-actions { flex-wrap: wrap; }
+  .post-actions .price-tag { display: none; }
+
+  .btn { padding: 12px; }
+  input[type=text], input[type=password], input[type=email], textarea { font-size: 16px; } /* verhindert iOS-Auto-Zoom */
+}
+
+@media (max-width: 380px) {
+  .appnav-tab { font-size: .8rem; padding: 6px 8px; }
+  .stats { grid-template-columns: 1fr 1fr; }
+  .stat .v { font-size: .98rem; }
+}
