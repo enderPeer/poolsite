@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PoolSite — Wallet</title>
+<meta name="description" content="Dein PoolSite Test-Wallet: Token-Guthaben, Statistiken und Preisverlauf.">
+<link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <a class="logo" href="index.html"><span class="logo-mark">P</span> PoolSite</a>
+    <a class="back" href="index.html">← Zurück zur Website</a>
+  </div>
+</header>
+<div class="beta-banner">
+  ⚠️ Test-Wallet: Alle Werte sind simulierte Demo-Daten — es existieren noch keine echten Token, Preise oder Börsen.
+</div>
+<nav id="app-nav" class="appnav" style="display:none"></nav>
+
+<main>
+  <div class="wrap">
+    <h1 class="page-title">Wallet</h1>
+    <p class="page-sub">Hallo <span id="w-name">—</span>, hier ist dein Token-Überblick.</p>
+
+    <div class="balance-card">
+      <div>
+        <div class="label">Dein Guthaben</div>
+        <div class="big" id="w-balance">—</div>
+        <div class="eur" id="w-balance-eur">—</div>
+      </div>
+      <div style="text-align:right">
+        <div class="label">Gestern verdient</div>
+        <div class="big" style="font-size:1.5rem" id="w-yesterday">—</div>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="v aqua" id="s-circ">—</div>
+        <div class="l">Token im Umlauf (von 18,25 Mio.)</div>
+      </div>
+      <div class="stat">
+        <div class="v" id="s-price">—<span class="delta" id="s-price-delta"></span></div>
+        <div class="l">Aktueller Preis pro Token</div>
+      </div>
+      <div class="stat">
+        <div class="v gold" id="s-mcap">—</div>
+        <div class="l">Marktkapitalisierung (Umlauf)</div>
+      </div>
+      <div class="stat">
+        <div class="v" id="s-fdv">—</div>
+        <div class="l">Voll verwässert (18,25 Mio. × Preis)</div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <h3>Deine Token pro Tag</h3>
+      <div class="hint">Tägliche Ausschüttung an dich — letzte 30 Tage</div>
+      <svg id="chart-earn" viewBox="0 0 900 260"></svg>
+    </div>
+
+    <div class="chart-card">
+      <h3>Preis pro Token</h3>
+      <div class="hint">Simulierter Preisverlauf seit Launch (Demo) — in Euro</div>
+      <svg id="chart-price" viewBox="0 0 900 260"></svg>
+    </div>
+  </div>
+</main>
+
+<script src="assets/app-core.js"></script>
+<script>
+function mulberry32(seed) {
+  return function () {
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    var t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function strSeed(s) {
+  var h = 2166136261;
+  for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+function fmt(n, dec) {
+  return n.toLocaleString('de-DE', { minimumFractionDigits: dec || 0, maximumFractionDigits: dec || 0 });
+}
+function fmtEur(n, dec) { return fmt(n, dec === undefined ? 2 : dec) + ' €'; }
+
+var ns = 'http://www.w3.org/2000/svg';
+function el(name, attrs, parent) {
+  var e = document.createElementNS(ns, name);
+  for (var k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function grid(svg, W, H, padL, padR, padT, padB, maxV, fmtFn) {
+  [0, 0.5, 1].forEach(function (t) {
+    var y = padT + (H - padT - padB) * (1 - t);
+    el('line', { x1: padL, y1: y, x2: W - padR, y2: y, stroke: 'rgba(255,255,255,0.07)' }, svg);
+    var lbl = el('text', { x: padL - 8, y: y + 4, fill: '#9db0c9', 'font-size': 11, 'text-anchor': 'end' }, svg);
+    lbl.textContent = fmtFn(maxV * t);
+  });
+}
+
+function init() {
+  var rec = PS.me();
+  if (!rec) { location.href = 'app.html'; return; }
+  PS.renderNav('wallet');
+
+  var LAUNCH = new Date('2026-01-01T00:00:00');
+  var DAILY_EMISSION = 5000;
+  var TOTAL_SUPPLY = 18250000;
+  var today = new Date(); today.setHours(0, 0, 0, 0);
+  var daysSinceLaunch = Math.max(1, Math.floor((today - LAUNCH) / 86400000));
+  var circulating = daysSinceLaunch * DAILY_EMISSION;
+
+  var priceRand = mulberry32(424242);
+  var prices = [];
+  var p = 0.08;
+  for (var d = 0; d <= daysSinceLaunch; d++) {
+    p = Math.max(0.01, p * (1 + (priceRand() - 0.47) * 0.06));
+    prices.push(p);
+  }
+  var price = prices[prices.length - 1];
+  var priceYesterday = prices[prices.length - 2] || price;
+  var priceDelta = (price - priceYesterday) / priceYesterday * 100;
+
+  var earnRand = mulberry32(strSeed(PS.sessionKey()));
+  var earnings = [];
+  for (var d2 = 0; d2 < daysSinceLaunch; d2++) {
+    earnings.push(Math.round(6 + earnRand() * 32));
+  }
+  var balance = earnings.reduce(function (a, b) { return a + b; }, 0);
+  var yesterdayEarn = earnings[earnings.length - 1] || 0;
+
+  document.getElementById('w-name').textContent = rec.name;
+  document.getElementById('w-balance').textContent = fmt(balance) + ' PST';
+  document.getElementById('w-balance-eur').textContent = '≈ ' + fmtEur(balance * price);
+  document.getElementById('w-yesterday').textContent = '+' + fmt(yesterdayEarn) + ' PST';
+  document.getElementById('s-circ').textContent = fmt(circulating / 1e6, 2) + ' Mio.';
+  document.getElementById('s-price').firstChild.textContent = fmtEur(price, 4);
+  var deltaEl = document.getElementById('s-price-delta');
+  deltaEl.textContent = (priceDelta >= 0 ? '▲ +' : '▼ ') + priceDelta.toFixed(1).replace('.', ',') + ' %';
+  deltaEl.className = 'delta ' + (priceDelta >= 0 ? 'up' : 'down');
+  document.getElementById('s-mcap').textContent = fmtEur(circulating * price, 0);
+  document.getElementById('s-fdv').textContent = fmtEur(TOTAL_SUPPLY * price, 0);
+
+  // Chart 1: Token pro Tag (letzte 30 Tage)
+  (function () {
+    var svg = document.getElementById('chart-earn');
+    var W = 900, H = 260, padL = 55, padR = 10, padT = 14, padB = 30;
+    var data = earnings.slice(-30);
+    var maxV = Math.max.apply(null, data) * 1.15;
+    var plotW = W - padL - padR, plotH = H - padT - padB;
+    grid(svg, W, H, padL, padR, padT, padB, maxV, function (v) { return Math.round(v); });
+    var n = data.length;
+    var barW = plotW / n * 0.62;
+    data.forEach(function (v, i) {
+      var x = padL + (i + 0.5) * (plotW / n);
+      var h = v / maxV * plotH;
+      el('rect', { x: x - barW / 2, y: padT + plotH - h, width: barW, height: h, rx: 2.5, fill: '#2dd4bf', opacity: 0.85 }, svg);
+      if (i % 5 === 0 || i === n - 1) {
+        var dte = new Date(today); dte.setDate(dte.getDate() - (n - 1 - i));
+        var t = el('text', { x: x, y: H - padB + 18, fill: '#9db0c9', 'font-size': 10, 'text-anchor': 'middle' }, svg);
+        t.textContent = dte.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+      }
+    });
+  })();
+
+  // Chart 2: Preisverlauf
+  (function () {
+    var svg = document.getElementById('chart-price');
+    var W = 900, H = 260, padL = 65, padR = 10, padT = 14, padB = 30;
+    var data = prices;
+    var maxV = Math.max.apply(null, data) * 1.1;
+    var plotW = W - padL - padR, plotH = H - padT - padB;
+    grid(svg, W, H, padL, padR, padT, padB, maxV, function (v) { return v.toFixed(3).replace('.', ',') + ' €'; });
+
+    function x(i) { return padL + i / (data.length - 1) * plotW; }
+    function y(v) { return padT + plotH - v / maxV * plotH; }
+
+    var defs = el('defs', {}, svg);
+    var grad = el('linearGradient', { id: 'pgrad', x1: 0, y1: 0, x2: 0, y2: 1 }, defs);
+    el('stop', { offset: '0%', 'stop-color': '#0ea5e9', 'stop-opacity': 0.35 }, grad);
+    el('stop', { offset: '100%', 'stop-color': '#0ea5e9', 'stop-opacity': 0 }, grad);
+
+    var line = data.map(function (v, i) { return (i === 0 ? 'M' : 'L') + x(i).toFixed(1) + ',' + y(v).toFixed(1); }).join(' ');
+    el('path', { d: line + ' L' + x(data.length - 1).toFixed(1) + ',' + (padT + plotH) + ' L' + padL + ',' + (padT + plotH) + ' Z', fill: 'url(#pgrad)' }, svg);
+    el('path', { d: line, fill: 'none', stroke: '#0ea5e9', 'stroke-width': 2.2 }, svg);
+    el('circle', { cx: x(data.length - 1), cy: y(data[data.length - 1]), r: 4, fill: '#2dd4bf' }, svg);
+
+    [0, 0.25, 0.5, 0.75, 1].forEach(function (t) {
+      var i = Math.round(t * (data.length - 1));
+      var dte = new Date(LAUNCH); dte.setDate(dte.getDate() + i);
+      var lbl = el('text', { x: x(i), y: H - padB + 18, fill: '#9db0c9', 'font-size': 10, 'text-anchor': t === 0 ? 'start' : (t === 1 ? 'end' : 'middle') }, svg);
+      lbl.textContent = dte.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+    });
+  })();
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+
+</body>
+</html>

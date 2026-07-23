@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PoolSite — Newsfeed</title>
+<meta name="description" content="Der PoolSite Newsfeed — teile Beiträge mit der Community.">
+<link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <a class="logo" href="index.html"><span class="logo-mark">P</span> PoolSite</a>
+    <a class="back" href="index.html">← Zurück zur Website</a>
+  </div>
+</header>
+<div class="beta-banner">
+  ⚠️ Prototyp: Beiträge werden nur lokal in diesem Browser gespeichert und sind für andere noch nicht sichtbar.
+</div>
+<nav id="app-nav" class="appnav" style="display:none"></nav>
+
+<main>
+  <div class="wrap">
+    <div class="feed-col">
+      <h1 class="page-title">Newsfeed</h1>
+      <p class="page-sub">Teile Neuigkeiten mit der Community.</p>
+
+      <div class="composer">
+        <div class="avatar-sm" id="comp-avatar"><span>?</span></div>
+        <div style="flex:1">
+          <textarea id="post-text" maxlength="500" placeholder="Was gibt's Neues?" oninput="updateCount()"></textarea>
+          <div class="composer-foot">
+            <span class="count"><span id="char-count">0</span>/500</span>
+            <button class="btn small" onclick="createPost()">Posten</button>
+          </div>
+          <div class="msg" id="msg-post"></div>
+        </div>
+      </div>
+
+      <div id="posts"></div>
+    </div>
+  </div>
+</main>
+
+<script src="assets/app-core.js"></script>
+<script>
+function updateCount() {
+  document.getElementById('char-count').textContent = document.getElementById('post-text').value.length;
+}
+
+function setMsg(text, type) {
+  var el = document.getElementById('msg-post');
+  el.className = 'msg' + (text ? ' ' + type : '');
+  el.textContent = text || '';
+}
+
+function createPost() {
+  var ta = document.getElementById('post-text');
+  var text = ta.value.trim();
+  if (!text) {
+    setMsg('Schreib erst etwas, bevor du postest.', 'error');
+    return;
+  }
+  var posts = PS.loadPosts();
+  posts.push({
+    id: Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+    author: PS.sessionKey(),
+    text: text,
+    createdAt: new Date().toISOString(),
+    likes: []
+  });
+  PS.savePosts(posts);
+  ta.value = '';
+  updateCount();
+  setMsg('', '');
+  renderPosts();
+}
+
+function toggleLike(id) {
+  var meKey = PS.sessionKey();
+  var posts = PS.loadPosts();
+  var post = posts.filter(function (p) { return p.id === id; })[0];
+  if (!post) return;
+  post.likes = post.likes || [];
+  var i = post.likes.indexOf(meKey);
+  if (i >= 0) { post.likes.splice(i, 1); } else { post.likes.push(meKey); }
+  PS.savePosts(posts);
+  renderPosts();
+}
+
+function deletePost(id) {
+  if (!confirm('Beitrag löschen?')) return;
+  PS.savePosts(PS.loadPosts().filter(function (p) { return p.id !== id; }));
+  renderPosts();
+}
+
+function renderPosts() {
+  var host = document.getElementById('posts');
+  var users = PS.loadUsers();
+  var meKey = PS.sessionKey();
+  var posts = PS.loadPosts().slice().sort(function (a, b) {
+    return new Date(b.createdAt) - new Date(a.createdAt);
+  });
+
+  if (!posts.length) {
+    host.innerHTML = '<div class="feed-empty">Noch keine Beiträge. Sei die erste Stimme im Feed! 🚀</div>';
+    return;
+  }
+
+  host.innerHTML = posts.map(function (p) {
+    var author = users[p.author];
+    var name = author ? author.name : 'Ehemaliger Nutzer';
+    var likes = p.likes || [];
+    var liked = likes.indexOf(meKey) >= 0;
+    return '<div class="post">' +
+      '<div class="post-head">' +
+        '<div class="avatar-sm">' + PS.avatarHtml(author) + '</div>' +
+        '<div class="who">' +
+          '<div class="name">' + PS.escapeHtml(name) + '</div>' +
+          '<div class="when">' + PS.timeAgo(p.createdAt) + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="post-text">' + PS.escapeHtml(p.text) + '</div>' +
+      '<div class="post-actions">' +
+        '<button class="' + (liked ? 'liked' : '') + '" onclick="toggleLike(\'' + p.id + '\')">' +
+          (liked ? '♥' : '♡') + ' ' + (likes.length || '') + '</button>' +
+        (p.author === meKey ? '<button onclick="deletePost(\'' + p.id + '\')">🗑 Löschen</button>' : '') +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function init() {
+  var rec = PS.me();
+  if (!rec) { location.href = 'app.html'; return; }
+  PS.renderNav('feed');
+  document.getElementById('comp-avatar').innerHTML = PS.avatarHtml(rec);
+  renderPosts();
+  if (location.hash === '#neu') {
+    document.getElementById('post-text').focus();
+  }
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+
+</body>
+</html>

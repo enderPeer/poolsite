@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(gh --version)",
+      "PowerShell(node --version)",
+      "PowerShell(git init -b main)",
+      "PowerShell(git add index.html)",
+      "PowerShell(gh auth status)",
+      "PowerShell(Test-Path \"C:\\\\Program Files\\\\GitHub CLI\\\\gh.exe\"; Test-Path \"$env:LOCALAPPDATA\\\\Microsoft\\\\WinGet\\\\Links\\\\gh.exe\")",
+      "PowerShell(& \"C:\\\\Program Files\\\\GitHub CLI\\\\gh.exe\" auth status)",
+      "PowerShell(& \"C:\\\\Program Files\\\\GitHub CLI\\\\gh.exe\" repo create poolsite --public --source . --push)",
+      "PowerShell(& \"C:\\\\Program Files\\\\GitHub CLI\\\\gh.exe\" api repos/enderPeer/poolsite/pages -X POST -f \"source[branch]=main\" -f \"source[path]=/\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" https://enderpeer.github.io/poolsite/)",
+      "Bash(curl -s https://enderpeer.github.io/poolsite/)",
+      "PowerShell(& \"C:\\\\Program Files\\\\GitHub CLI\\\\gh.exe\" api repos/is-a-dev/register/contents/domains/poolsite.json 2>$null)",
+      "PowerShell(if \\($LASTEXITCODE -ne 0\\) { \"FREI: poolsite.is-a.dev ist noch nicht vergeben\" })",
+      "PowerShell(& \"C:\\\\Program Files\\\\GitHub CLI\\\\gh.exe\" api \"repos/is-a-dev/register/contents/domains?per_page=5\" --jq \".[].name\")",
+      "PowerShell(& \"C:\\\\Program Files\\\\GitHub CLI\\\\gh.exe\" api repos/is-a-dev/register/contents/domains/0x0.json --jq \".content\" | ForEach-Object { [System.Text.Encoding]::UTF8.GetString\\([Convert]::FromBase64String\\($_\\)\\) })",
+      "PowerShell(& \"C:\\\\Program Files\\\\GitHub CLI\\\\gh.exe\" repo fork is-a-dev/register --remote=false)",
+      "PowerShell(& \"C:\\\\Program Files\\\\GitHub CLI\\\\gh.exe\" api repos/is-a-dev/register/contents/.github/pull_request_template.md --jq \".content\" | ForEach-Object { [System.Text.Encoding]::UTF8.GetString\\([Convert]::FromBase64String\\($_\\)\\) })",
+      "PowerShell(& \"C:\\\\Program Files\\\\GitHub CLI\\\\gh.exe\" repo fork is-a-dev/register)",
+      "PowerShell(& \"C:\\\\Program Files\\\\GitHub CLI\\\\gh.exe\" api \"repos/is-a-dev/register/contents/.github\" --jq \".[].name\")",
+      "PowerShell(& \"C:\\\\Program Files\\\\GitHub CLI\\\\gh.exe\" api repos/is-a-dev/register/contents/.github/PULL_REQUEST_TEMPLATE.md --jq \".content\" | ForEach-Object { [System.Text.Encoding]::UTF8.GetString\\([Convert]::FromBase64String\\(\\($_ -replace \"\\\\s\",\"\"\\)\\)\\) })",
+      "PowerShell(git add index.html app.html)",
+      "PowerShell(git push)",
+      "Bash(curl -s https://enderpeer.github.io/poolsite/app.html)",
+      "PowerShell(git add -A)"
+    ]
+  }
+}
