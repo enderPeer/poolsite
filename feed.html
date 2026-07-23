@@ -16,7 +16,7 @@
   </div>
 </header>
 <div class="beta-banner">
-  ⚠️ Prototyp: Beiträge werden nur lokal in diesem Browser gespeichert und sind für andere noch nicht sichtbar.
+  ⚠️ Prototyp: Beiträge und Guthaben werden nur lokal in diesem Browser gespeichert. Bezahlte Aktionen nutzen Demo-Guthaben — kein echtes Geld.
 </div>
 <nav id="app-nav" class="appnav" style="display:none"></nav>
 
@@ -24,14 +24,14 @@
   <div class="wrap">
     <div class="feed-col">
       <h1 class="page-title">Newsfeed</h1>
-      <p class="page-sub">Teile Neuigkeiten mit der Community.</p>
+      <p class="page-sub">Teile Neuigkeiten mit der Community. Bezahlte Aktionen erhöhen deinen Burn (Commitment B) und damit dein Standing.</p>
 
       <div class="composer">
         <div class="avatar-sm" id="comp-avatar"><span>?</span></div>
         <div style="flex:1">
           <textarea id="post-text" maxlength="500" placeholder="Was gibt's Neues?" oninput="updateCount()"></textarea>
           <div class="composer-foot">
-            <span class="count"><span id="char-count">0</span>/500</span>
+            <span class="count"><span id="char-count">0</span>/500 · Posten kostet <span class="burn-chip" id="post-price">—</span></span>
             <button class="btn small" onclick="createPost()">Posten</button>
           </div>
           <div class="msg" id="msg-post"></div>
@@ -45,6 +45,8 @@
 
 <script src="assets/app-core.js"></script>
 <script>
+var openComments = {};
+
 function updateCount() {
   document.getElementById('char-count').textContent = document.getElementById('post-text').value.length;
 }
@@ -55,6 +57,8 @@ function setMsg(text, type) {
   el.textContent = text || '';
 }
 
+function refreshNav() { PS.renderNav('feed'); }
+
 function createPost() {
   var ta = document.getElementById('post-text');
   var text = ta.value.trim();
@@ -62,37 +66,131 @@ function createPost() {
     setMsg('Schreib erst etwas, bevor du postest.', 'error');
     return;
   }
+  var pay = PS.charge('post');
+  if (!pay.ok) { setMsg(pay.error, 'error'); return; }
+
   var posts = PS.loadPosts();
   posts.push({
     id: Date.now() + '_' + Math.random().toString(36).slice(2, 8),
     author: PS.sessionKey(),
     text: text,
     createdAt: new Date().toISOString(),
-    likes: []
+    likes: [],
+    dislikes: [],
+    comments: []
   });
   PS.savePosts(posts);
   ta.value = '';
   updateCount();
-  setMsg('', '');
+  setMsg('Beitrag veröffentlicht — ' + PS.fmtEur(pay.price) + ' Burn → Commitment B. ✓', 'ok');
+  refreshNav();
   renderPosts();
 }
 
-function toggleLike(id) {
+function findPost(posts, id) {
+  return posts.filter(function (p) { return p.id === id; })[0];
+}
+
+function react(id, kind) { // kind: 'likes' | 'dislikes'
   var meKey = PS.sessionKey();
   var posts = PS.loadPosts();
-  var post = posts.filter(function (p) { return p.id === id; })[0];
+  var post = findPost(posts, id);
   if (!post) return;
   post.likes = post.likes || [];
-  var i = post.likes.indexOf(meKey);
-  if (i >= 0) { post.likes.splice(i, 1); } else { post.likes.push(meKey); }
+  post.dislikes = post.dislikes || [];
+  var list = post[kind];
+  var other = kind === 'likes' ? post.dislikes : post.likes;
+  var i = list.indexOf(meKey);
+  if (i >= 0) {
+    list.splice(i, 1); // Zurücknehmen ist gratis — Burn bleibt (unwiderruflich)
+  } else {
+    var pay = PS.charge(kind === 'likes' ? 'like' : 'dislike');
+    if (!pay.ok) { setMsg(pay.error, 'error'); return; }
+    var j = other.indexOf(meKey);
+    if (j >= 0) other.splice(j, 1);
+    list.push(meKey);
+    setMsg('', '');
+  }
+  PS.savePosts(posts);
+  refreshNav();
+  renderPosts();
+}
+
+function toggleComments(id) {
+  openComments[id] = !openComments[id];
+  renderPosts();
+  if (openComments[id]) {
+    var inp = document.getElementById('c-input-' + id);
+    if (inp) inp.focus();
+  }
+}
+
+function addComment(id) {
+  var inp = document.getElementById('c-input-' + id);
+  var text = (inp.value || '').trim();
+  if (!text) return;
+  var pay = PS.charge('comment');
+  if (!pay.ok) { setMsg(pay.error, 'error'); return; }
+
+  var posts = PS.loadPosts();
+  var post = findPost(posts, id);
+  if (!post) return;
+  post.comments = post.comments || [];
+  post.comments.push({
+    id: Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+    author: PS.sessionKey(),
+    text: text,
+    createdAt: new Date().toISOString()
+  });
+  PS.savePosts(posts);
+  setMsg('', '');
+  refreshNav();
+  renderPosts();
+  var inp2 = document.getElementById('c-input-' + id);
+  if (inp2) inp2.focus();
+}
+
+function deleteComment(postId, commentId) {
+  var posts = PS.loadPosts();
+  var post = findPost(posts, postId);
+  if (!post) return;
+  post.comments = (post.comments || []).filter(function (c) {
+    return !(c.id === commentId && c.author === PS.sessionKey());
+  });
   PS.savePosts(posts);
   renderPosts();
 }
 
 function deletePost(id) {
-  if (!confirm('Beitrag löschen?')) return;
+  if (!confirm('Beitrag löschen? (Der Burn bleibt — Commitment ist unwiderruflich.)')) return;
   PS.savePosts(PS.loadPosts().filter(function (p) { return p.id !== id; }));
   renderPosts();
+}
+
+function commentHtml(post) {
+  var users = PS.loadUsers();
+  var meKey = PS.sessionKey();
+  var comments = post.comments || [];
+  var rows = comments.map(function (c) {
+    var author = users[c.author];
+    var name = author ? author.name : 'Ehemaliger Nutzer';
+    return '<div class="comment">' +
+      '<div class="avatar-xs">' + PS.avatarHtml(author) + '</div>' +
+      '<div class="c-body">' +
+        '<div class="c-head"><span class="c-name">' + PS.escapeHtml(name) + '</span>' +
+        '<span class="c-when">' + PS.timeAgo(c.createdAt) + '</span></div>' +
+        '<div class="c-text">' + PS.escapeHtml(c.text) + '</div>' +
+      '</div>' +
+      (c.author === meKey ? '<button class="c-del" title="Kommentar löschen" onclick="deleteComment(\'' + post.id + '\',\'' + c.id + '\')">✕</button>' : '') +
+    '</div>';
+  }).join('');
+  return '<div class="comments">' + rows +
+    '<div class="comment-form">' +
+      '<input type="text" id="c-input-' + post.id + '" maxlength="300" placeholder="Kommentieren (' + PS.fmtEur(PS.PRICES.comment) + ')…" ' +
+        'onkeydown="if(event.key===\'Enter\')addComment(\'' + post.id + '\')">' +
+      '<button onclick="addComment(\'' + post.id + '\')">Senden</button>' +
+    '</div>' +
+  '</div>';
 }
 
 function renderPosts() {
@@ -112,7 +210,10 @@ function renderPosts() {
     var author = users[p.author];
     var name = author ? author.name : 'Ehemaliger Nutzer';
     var likes = p.likes || [];
+    var dislikes = p.dislikes || [];
+    var comments = p.comments || [];
     var liked = likes.indexOf(meKey) >= 0;
+    var disliked = dislikes.indexOf(meKey) >= 0;
     return '<div class="post">' +
       '<div class="post-head">' +
         '<div class="avatar-sm">' + PS.avatarHtml(author) + '</div>' +
@@ -123,10 +224,15 @@ function renderPosts() {
       '</div>' +
       '<div class="post-text">' + PS.escapeHtml(p.text) + '</div>' +
       '<div class="post-actions">' +
-        '<button class="' + (liked ? 'liked' : '') + '" onclick="toggleLike(\'' + p.id + '\')">' +
+        '<button class="' + (liked ? 'liked' : '') + '" title="Like (' + PS.fmtEur(PS.PRICES.like) + ')" onclick="react(\'' + p.id + '\',\'likes\')">' +
           (liked ? '♥' : '♡') + ' ' + (likes.length || '') + '</button>' +
-        (p.author === meKey ? '<button onclick="deletePost(\'' + p.id + '\')">🗑 Löschen</button>' : '') +
+        '<button class="' + (disliked ? 'disliked' : '') + '" title="Dislike (' + PS.fmtEur(PS.PRICES.dislike) + ')" onclick="react(\'' + p.id + '\',\'dislikes\')">' +
+          '👎 ' + (dislikes.length || '') + '</button>' +
+        '<button onclick="toggleComments(\'' + p.id + '\')">💬 ' + (comments.length || '') + '</button>' +
+        (p.author === meKey ? '<button onclick="deletePost(\'' + p.id + '\')">🗑</button>' : '') +
+        '<span class="price-tag">Like/Dislike ' + PS.fmtEur(PS.PRICES.like) + ' · Kommentar ' + PS.fmtEur(PS.PRICES.comment) + '</span>' +
       '</div>' +
+      (openComments[p.id] ? commentHtml(p) : '') +
     '</div>';
   }).join('');
 }
@@ -136,6 +242,7 @@ function init() {
   if (!rec) { location.href = 'app.html'; return; }
   PS.renderNav('feed');
   document.getElementById('comp-avatar').innerHTML = PS.avatarHtml(rec);
+  document.getElementById('post-price').textContent = PS.fmtEur(PS.PRICES.post);
   renderPosts();
   if (location.hash === '#neu') {
     document.getElementById('post-text').focus();

@@ -26,6 +26,59 @@ var PS = (function () {
     return Promise.resolve('fb_' + h.toString(16));
   }
 
+  /* Stable-Guthaben & bepreiste Aktionen (Demo-Oekonomie nach Revenue-Anchored Closure) */
+  var START_CREDITS = 10.00;
+  var PRICES = { post: 0.10, comment: 0.05, like: 0.02, dislike: 0.02 };
+
+  function round2(n) { return Math.round(n * 100) / 100; }
+  function fmtEur(n) {
+    return n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+  }
+
+  function ensureEcon(rec) {
+    if (rec && rec.credits === undefined) {
+      rec.credits = START_CREDITS;
+      rec.burn = 0;
+      rec.actions = 0;
+    }
+    return rec;
+  }
+
+  function econ(rec) {
+    if (!rec) return { credits: 0, burn: 0, actions: 0 };
+    return {
+      credits: rec.credits === undefined ? START_CREDITS : rec.credits,
+      burn: rec.burn || 0,
+      actions: rec.actions || 0
+    };
+  }
+
+  function charge(action) {
+    var key = sessionKey();
+    var users = loadUsers();
+    var rec = users[key];
+    if (!rec) return { ok: false, error: 'Nicht angemeldet.' };
+    ensureEcon(rec);
+    var price = PRICES[action] || 0;
+    if (rec.credits + 1e-9 < price) {
+      return { ok: false, error: 'Nicht genug Guthaben — diese Aktion kostet ' + fmtEur(price) + '.' };
+    }
+    rec.credits = round2(rec.credits - price);
+    rec.burn = round2(rec.burn + price);
+    rec.actions += 1;
+    saveUsers(users);
+    return { ok: true, price: price, credits: rec.credits };
+  }
+
+  function topUp(amount) {
+    var users = loadUsers();
+    var rec = users[sessionKey()];
+    if (!rec) return;
+    ensureEcon(rec);
+    rec.credits = round2(rec.credits + amount);
+    saveUsers(users);
+  }
+
   function guestLogin() {
     var users = loadUsers();
     if (!users[GUEST_KEY]) {
@@ -67,19 +120,24 @@ var PS = (function () {
       { id: 'wallet', label: '💰 Wallet', href: 'wallet.html' },
       { id: 'feed', label: '📰 Newsfeed', href: 'feed.html' }
     ];
+    var e = econ(me());
     host.innerHTML = '<div class="wrap appnav-inner">' + tabs.map(function (t) {
       return '<a class="appnav-tab' + (t.id === active ? ' active' : '') + '" href="' + t.href + '">' + t.label + '</a>';
-    }).join('') + '<span class="appnav-grow"></span><a class="appnav-post" href="feed.html#neu">＋ Beitrag</a></div>';
+    }).join('') + '<span class="appnav-grow"></span>' +
+      '<a class="appnav-credits" href="wallet.html" title="Stable-Guthaben">💶 ' + fmtEur(e.credits) + '</a>' +
+      '<a class="appnav-post" href="feed.html#neu">＋ Beitrag</a></div>';
     host.style.display = '';
   }
 
   return {
     GUEST_KEY: GUEST_KEY,
+    PRICES: PRICES, START_CREDITS: START_CREDITS,
     loadUsers: loadUsers, saveUsers: saveUsers,
     loadPosts: loadPosts, savePosts: savePosts,
     sessionKey: sessionKey, setSession: setSession,
     me: me, isGuest: isGuest,
     hash: hash, guestLogin: guestLogin,
+    econ: econ, charge: charge, topUp: topUp, fmtEur: fmtEur,
     avatarHtml: avatarHtml, escapeHtml: escapeHtml, timeAgo: timeAgo,
     renderNav: renderNav
   };

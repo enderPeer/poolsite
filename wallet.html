@@ -27,23 +27,29 @@
 
     <div class="balance-card">
       <div>
-        <div class="label">Dein Guthaben</div>
+        <div class="label">Token-Guthaben</div>
         <div class="big" id="w-balance">—</div>
         <div class="eur" id="w-balance-eur">—</div>
+      </div>
+      <div>
+        <div class="label">Stable-Guthaben (EUR-Credits)</div>
+        <div class="big" style="font-size:1.7rem" id="w-credits">—</div>
+        <div class="eur">Burn gesamt: <span class="burn-chip" id="w-burn">—</span> 🔥</div>
       </div>
       <div style="text-align:right">
         <div class="label">Gestern verdient</div>
         <div class="big" style="font-size:1.5rem" id="w-yesterday">—</div>
+        <button class="btn small secondary" style="margin-top:10px" onclick="demoTopUp()">Demo: +10 € aufladen</button>
       </div>
     </div>
 
     <div class="chart-card">
       <h3>Dein Standing — das Punktesystem</h3>
-      <div class="hint">Bestimmt deinen Anteil an den 5.000 Token pro Tag: Einsatz → Rate → Standing → Gate → Gewicht</div>
+      <div class="hint">Bestimmt deinen Anteil an den 5.000 Token pro Tag: Burn (Einsatz) → Rate → Standing → Gate → Gewicht. Dein Burn entsteht aus deinen echten bezahlten Aktionen in der App.</div>
       <div class="stats" style="margin-bottom:0">
         <div class="stat">
           <div class="v" id="st-b">—</div>
-          <div class="l">Einsatz (Commitment B)</div>
+          <div class="l">🔥 Dein Burn (Commitment B)</div>
         </div>
         <div class="stat">
           <div class="v" id="st-n">—</div>
@@ -173,32 +179,37 @@ function init() {
   document.getElementById('s-mcap').textContent = fmtEur(circulating * price, 0);
   document.getElementById('s-fdv').textContent = fmtEur(TOTAL_SUPPLY * price, 0);
 
-  // Standing Card (Demo): Einsatz -> Rate -> Standing -> Gate (Revenue-Anchored Closure, vereinfacht ohne Vouches)
+  // Stable-Guthaben & echter Burn aus bezahlten Aktionen
+  var eco = PS.econ(rec);
+  document.getElementById('w-credits').textContent = PS.fmtEur(eco.credits);
+  document.getElementById('w-burn').textContent = PS.fmtEur(eco.burn);
+
+  // Standing Card: echte Werte (Revenue-Anchored Closure, vereinfacht ohne Vouches)
   var NU = 0.10, RHO = 1.0;
-  var stRand = mulberry32(strSeed('standing:' + PS.sessionKey()));
-  var ownPosts = PS.loadPosts().filter(function (p) { return p.author === PS.sessionKey(); }).length;
-  var actionsN = Math.round(40 + stRand() * 260) + ownPosts;
-  var commitB = Math.round((5 + stRand() * 45) * 100) / 100;
+  var commitB = eco.burn;
+  var actionsN = eco.actions;
   var rate = commitB / Math.max(actionsN, 1);
   var alphaHat = rate / NU;
-  if (alphaHat < RHO) {
-    // Demo-Kohärenz: die Beispieldaten zeigen ein Konto mit offenem Gate
-    commitB = Math.round(actionsN * NU * (1.1 + stRand()) * 100) / 100;
-    rate = commitB / Math.max(actionsN, 1);
-    alphaHat = rate / NU;
-  }
-  var gateOpen = alphaHat >= RHO;
+  var gateOpen = actionsN > 0 && alphaHat >= RHO;
 
-  document.getElementById('st-b').textContent = fmtEur(commitB);
+  document.getElementById('st-b').textContent = PS.fmtEur(commitB);
   document.getElementById('st-n').textContent = fmt(actionsN);
   document.getElementById('st-r').textContent = fmtEur(rate, 3);
-  document.getElementById('st-alpha').firstChild.textContent = alphaHat.toFixed(2).replace('.', ',');
+  document.getElementById('st-alpha').firstChild.textContent = actionsN > 0 ? alphaHat.toFixed(2).replace('.', ',') : '—';
   var gateEl = document.getElementById('st-gate');
   gateEl.textContent = gateOpen ? '✓ Gate offen' : '✗ unter Schwelle';
   gateEl.className = 'delta ' + (gateOpen ? 'up' : 'down');
-  document.getElementById('st-explain').textContent = gateOpen
-    ? 'Dein Gate ist offen: Deine Interaktionen zählen mit Standing-Kernel in die Verteilung. Gestern ergab das 5.000 × dein Gewicht ÷ Netzwerk-Gewicht = +' + fmt(yesterdayEarn) + ' PST. Jede Aktion ohne Einsatz senkt deine Rate — Qualität schlägt Masse.'
-    : 'Dein Standing liegt unter der Schwelle ρ = 1,0: Du kannst kostenlos posten und interagieren, trägst aber kein wirtschaftliches Gewicht bei der Token-Verteilung.';
+  if (actionsN === 0) {
+    document.getElementById('st-explain').textContent =
+      'Noch keine Aktionen: Poste, kommentiere oder like im Newsfeed — jede bezahlte Aktion erhöht deinen Burn und baut dein Standing auf.';
+  } else if (gateOpen) {
+    document.getElementById('st-explain').textContent =
+      'Dein Gate ist offen: Deine Interaktionen zählen mit Standing-Kernel in die Verteilung (5.000 × dein Gewicht ÷ Netzwerk-Gewicht pro Tag). Jede Aktion ohne Einsatz senkt deine Rate — Qualität schlägt Masse.';
+  } else {
+    var needed = Math.max(0, actionsN * NU * RHO - commitB);
+    document.getElementById('st-explain').textContent =
+      'Dein Standing liegt unter der Schwelle ρ = 1,0: Du nimmst kostenlos teil, trägst aber kein wirtschaftliches Gewicht. Dir fehlen noch ' + PS.fmtEur(needed) + ' Burn (bei ' + fmt(actionsN) + ' Aktionen), um das Gate zu öffnen.';
+  }
 
   // Chart 1: Token pro Tag (letzte 30 Tage)
   (function () {
@@ -251,6 +262,13 @@ function init() {
       lbl.textContent = dte.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
     });
   })();
+}
+
+function demoTopUp() {
+  PS.topUp(10);
+  var eco = PS.econ(PS.me());
+  document.getElementById('w-credits').textContent = PS.fmtEur(eco.credits);
+  PS.renderNav('wallet');
 }
 
 document.addEventListener('DOMContentLoaded', init);

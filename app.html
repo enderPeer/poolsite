@@ -104,6 +104,8 @@
       <div class="info-row"><span class="k">E-Mail</span><span class="v" id="pf-email">—</span></div>
       <div class="info-row"><span class="k">Benachrichtigungen</span><span class="v" id="pf-notify">—</span></div>
       <div class="info-row"><span class="k">Mitglied seit</span><span class="v" id="pf-since">—</span></div>
+      <div class="info-row"><span class="k">Stable-Guthaben (EUR)</span><span class="v" id="pf-credits">—</span></div>
+      <div class="info-row"><span class="k">🔥 Burn (Commitment B)</span><span class="v burn-chip" id="pf-burn">—</span></div>
       <div class="info-row"><span class="k">Token-Guthaben</span><span class="v">siehe Wallet</span></div>
     </div>
 
@@ -204,7 +206,8 @@ function doUpgrade(ev) {
     users[newKey] = {
       name: user, passHash: ph, email: email || null, notifyConsent: !!email,
       createdAt: guest.createdAt || new Date().toISOString(),
-      avatar: guest.avatar || null
+      avatar: guest.avatar || null,
+      credits: guest.credits, burn: guest.burn, actions: guest.actions
     };
     delete users[PS.GUEST_KEY];
     PS.saveUsers(users);
@@ -297,6 +300,9 @@ function render() {
     : '<span class="tag off">deaktiviert</span>';
   document.getElementById('pf-since').textContent =
     new Date(rec.createdAt).toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' });
+  var eco = PS.econ(rec);
+  document.getElementById('pf-credits').textContent = PS.fmtEur(eco.credits);
+  document.getElementById('pf-burn').textContent = PS.fmtEur(eco.burn) + ' (' + eco.actions + ' Aktionen)';
   document.getElementById('btn-delete').textContent = guest ? 'Gast-Daten löschen' : 'Konto löschen';
 
   var avatar = document.getElementById('avatar');
