@@ -17,12 +17,21 @@ const START_CREDITS = 10.00;
 const USER_RE = /^[A-Za-z0-9][A-Za-z0-9._]{1,29}$/;
 const MAX_BODY = 300 * 1024; // 300 KB (Avatare als DataURL)
 
+/* ---------- Token-Verteilung (Konstanten) ---------- */
+const DAILY_TOKENS = 5000;          // Jahr-1-Emission pro Tag
+const NU = 0.10, RHO = 0.2;         // Numéraire & Gate-Schwelle (veröffentlichte Konstante)
+const W_TYPE = { like: 1.0, dislike: 0.3, comment: 1.2 };
+const LAMBDA_DIM = 0.3;             // abnehmende Ertraege pro Actor->Creator-Paar
+
 /* ---------- Datenbank ---------- */
-let db = { users: {}, posts: [], sessions: {} };
+let db = { users: {}, posts: [], sessions: {}, events: [], meta: null };
 function loadDb() {
   try { db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8')); } catch (e) { /* frische DB */ }
   db.users = db.users || {}; db.posts = db.posts || []; db.sessions = db.sessions || {};
+  db.events = db.events || [];
+  if (!db.meta) db.meta = { lastDay: dayStr(Date.now() - 86400000), carryover: 0, totalDistributed: 0 };
 }
+function dayStr(t) { return new Date(t).toISOString().slice(0, 10); }
 function saveDb() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   const tmp = DB_FILE + '.tmp';
@@ -64,7 +73,8 @@ function mePayload(key) {
   return {
     key: key, name: u.name, email: u.email || null, notifyConsent: !!u.notifyConsent,
     createdAt: u.createdAt, avatar: u.avatar || null, guest: !!u.guest,
-    credits: u.credits, burn: u.burn, actions: u.actions
+    credits: u.credits, burn: u.burn, actions: u.actions,
+    tokens: u.tokens || 0, startClaimed: !!u.startClaimed
   };
 }
 
@@ -93,8 +103,70 @@ function newUserRecord(name, passHash, email, guest) {
   return {
     name: name, passHash: passHash, email: email || null, notifyConsent: !!email,
     createdAt: new Date().toISOString(), avatar: null, guest: !!guest,
-    credits: START_CREDITS, burn: 0, actions: 0
+    credits: 0, burn: 0, actions: 0,
+    tokens: 0, startClaimed: false, tokenHistory: []
   };
+}
+
+/* ---------- Standing & tägliche Token-Verteilung ---------- */
+function alphaHat(u) { return (u.burn / Math.max(u.actions, 1)) / NU; }
+function lam(x) { return x / (1 + x); }
+
+function logEvent(type, actorKey, creatorKey) {
+  if (actorKey === creatorKey) return; // Selbst-Engagement zählt nicht
+  db.events.push({ d: dayStr(Date.now()), t: type, a: actorKey, c: creatorKey });
+}
+
+function dayWeights(day) {
+  const weights = {}; const pairCount = {};
+  for (const e of db.events) {
+    if (e.d !== day) continue;
+    const actor = db.users[e.a];
+    if (!actor) continue;
+    const a = alphaHat(actor);
+    if (actor.actions === 0 || a < RHO) continue; // Gate geschlossen -> Gewicht 0
+    const pk = e.a + '>' + e.c;
+    pairCount[pk] = (pairCount[pk] || 0) + 1;
+    const w = (W_TYPE[e.t] || 0) * (1 / (1 + LAMBDA_DIM * Math.max(0, pairCount[pk] - 1))) * lam(a);
+    weights[e.c] = (weights[e.c] || 0) + w;
+  }
+  return weights;
+}
+
+function distribute() {
+  const today = dayStr(Date.now());
+  let changed = false;
+  let guard = 0;
+  while (guard++ < 400) {
+    const next = dayStr(new Date(db.meta.lastDay + 'T00:00:00Z').getTime() + 86400000);
+    if (next >= today) break; // erst verteilen, wenn der Tag abgeschlossen ist
+    // 'next' ist ein abgeschlossener Tag (< heute): verteilen
+    const pool = DAILY_TOKENS + db.meta.carryover;
+    const weights = dayWeights(next);
+    let total = 0;
+    for (const k of Object.keys(weights)) total += weights[k];
+    if (total > 0) {
+      for (const k of Object.keys(weights)) {
+        const u = db.users[k];
+        if (!u) continue;
+        const amt = Math.round(pool * weights[k] / total * 100) / 100;
+        u.tokens = Math.round(((u.tokens || 0) + amt) * 100) / 100;
+        u.tokenHistory = u.tokenHistory || [];
+        u.tokenHistory.push({ day: next, amount: amt });
+      }
+      db.meta.totalDistributed = Math.round((db.meta.totalDistributed + pool) * 100) / 100;
+      db.meta.carryover = 0;
+    } else {
+      db.meta.carryover = pool; // kein anspruchsberechtigtes Gewicht -> Übertrag
+    }
+    db.meta.lastDay = next;
+    changed = true;
+  }
+  // alte Events aufräumen (> 40 Tage)
+  const cutoff = dayStr(Date.now() - 40 * 86400000);
+  const before = db.events.length;
+  db.events = db.events.filter(e => e.d >= cutoff);
+  if (changed || db.events.length !== before) saveDb();
 }
 
 /* ---------- API ---------- */
@@ -206,10 +278,42 @@ function handleApi(req, res, pathname, body) {
     return json(res, 200, { me: mePayload(key) });
   }
 
-  if (pathname === '/api/topup' && req.method === 'POST') {
-    me.credits = round2(me.credits + 10);
+  if (pathname === '/api/claim-start' && req.method === 'POST') {
+    if (me.startClaimed) return json(res, 400, { error: 'Du hast dein Startguthaben bereits abgeholt.' });
+    me.startClaimed = true;
+    me.credits = round2(me.credits + START_CREDITS);
     saveDb();
     return json(res, 200, { me: mePayload(key) });
+  }
+
+  if (pathname === '/api/wallet' && req.method === 'GET') {
+    distribute();
+    const today = dayStr(Date.now());
+    const weights = dayWeights(today);
+    let networkWeight = 0;
+    for (const k of Object.keys(weights)) networkWeight += weights[k];
+    const myWeight = weights[key] || 0;
+    const pool = DAILY_TOKENS + db.meta.carryover;
+    const history = (me.tokenHistory || []).slice(-30);
+    const yesterday = dayStr(Date.now() - 86400000);
+    const yEntry = (me.tokenHistory || []).filter(h => h.day === yesterday);
+    const nextMidnight = new Date();
+    nextMidnight.setUTCHours(24, 0, 0, 0);
+    return json(res, 200, {
+      me: mePayload(key),
+      wallet: {
+        tokens: me.tokens || 0,
+        history: history,
+        yesterday: yEntry.length ? yEntry[0].amount : 0,
+        todayWeight: Math.round(myWeight * 1000) / 1000,
+        networkWeight: Math.round(networkWeight * 1000) / 1000,
+        projected: networkWeight > 0 ? Math.round(pool * myWeight / networkWeight * 100) / 100 : 0,
+        poolToday: pool,
+        carryover: db.meta.carryover,
+        totalDistributed: db.meta.totalDistributed,
+        nextDistribution: nextMidnight.toISOString()
+      }
+    });
   }
 
   if (pathname === '/api/posts' && req.method === 'POST') {
@@ -239,6 +343,7 @@ function handleApi(req, res, pathname, body) {
       const j = other.indexOf(key);
       if (j >= 0) other.splice(j, 1);
       list.push(key);
+      logEvent(kind === 'likes' ? 'like' : 'dislike', key, p.author);
     }
     saveDb();
     return json(res, 200, { me: mePayload(key), post: postPayload(p) });
@@ -254,6 +359,7 @@ function handleApi(req, res, pathname, body) {
     if (!pay.ok) return json(res, 402, { error: pay.error });
     p.comments = p.comments || [];
     p.comments.push({ id: newId('c'), author: key, text: text, createdAt: new Date().toISOString() });
+    logEvent('comment', key, p.author);
     saveDb();
     return json(res, 200, { me: mePayload(key), post: postPayload(p) });
   }
@@ -324,6 +430,9 @@ const server = http.createServer((req, res) => {
 
   serveStatic(res, pathname);
 });
+
+distribute();                                // ausstehende Tage beim Start verarbeiten
+setInterval(distribute, 60 * 1000);          // und danach jede Minute prüfen (00:00 UTC)
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log('PoolSite-Server läuft: http://localhost:' + PORT);

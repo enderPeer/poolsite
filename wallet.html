@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PoolSite — Wallet</title>
-<meta name="description" content="Dein PoolSite Test-Wallet: Token-Guthaben, Statistiken und Preisverlauf.">
+<meta name="description" content="Dein PoolSite Wallet: Token-Guthaben, Standing und tägliche Verteilung.">
 <link rel="stylesheet" href="assets/app.css">
 </head>
 <body>
@@ -25,9 +25,9 @@
 
     <div class="balance-card">
       <div>
-        <div class="label">Token-Guthaben</div>
+        <div class="label">Token-Guthaben (PST)</div>
         <div class="big" id="w-balance">—</div>
-        <div class="eur" id="w-balance-eur">—</div>
+        <div class="eur" id="w-yesterday-line">Gestern erhalten: <strong id="w-yesterday">—</strong></div>
       </div>
       <div>
         <div class="label">Stable-Guthaben (EUR-Credits)</div>
@@ -35,9 +35,32 @@
         <div class="eur">Burn gesamt: <span class="burn-chip" id="w-burn">—</span> 🔥</div>
       </div>
       <div class="bc-right">
-        <div class="label">Gestern verdient</div>
-        <div class="big" style="font-size:1.5rem" id="w-yesterday">—</div>
-        <button class="btn small secondary" style="margin-top:10px" onclick="demoTopUp()">Demo: +10 € aufladen</button>
+        <div class="label">Einmaliges Startguthaben</div>
+        <button class="btn small" style="margin-top:8px" id="btn-claim" onclick="doClaim()">🎁 10 € abholen</button>
+        <div class="hint" id="claim-hint" style="margin-top:8px"></div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <h3>Heutige Verteilung — läuft live</h3>
+      <div class="hint">Um 00:00 UTC werden <span id="d-pool">5.000</span> PST nach Punktesystem verteilt (Engagement auf deinen Inhalten × Standing der Interagierenden)</div>
+      <div class="stats" style="margin-bottom:0">
+        <div class="stat">
+          <div class="v aqua" id="d-myweight">—</div>
+          <div class="l">Dein Gewicht heute</div>
+        </div>
+        <div class="stat">
+          <div class="v" id="d-netweight">—</div>
+          <div class="l">Netzwerk-Gewicht heute</div>
+        </div>
+        <div class="stat">
+          <div class="v gold" id="d-projected">—</div>
+          <div class="l">Dein voraussichtlicher Anteil</div>
+        </div>
+        <div class="stat">
+          <div class="v" id="d-countdown">—</div>
+          <div class="l">Nächste Verteilung (00:00 UTC)</div>
+        </div>
       </div>
     </div>
 
@@ -59,64 +82,45 @@
         </div>
         <div class="stat">
           <div class="v" id="st-alpha">—<span class="delta" id="st-gate"></span></div>
-          <div class="l">Standing (α̂) &amp; Gate (Schwelle ρ = 1,0)</div>
+          <div class="l">Standing (α̂) &amp; Gate (Schwelle ρ = 0,2)</div>
         </div>
       </div>
       <div class="hint" id="st-explain" style="margin-top:14px; margin-bottom:0"></div>
     </div>
 
+    <div class="chart-card">
+      <h3>Deine Token pro Tag</h3>
+      <div class="hint">Echte tägliche Ausschüttungen an dich — letzte 30 Tage</div>
+      <div class="chart-scroll"><svg id="chart-earn" viewBox="0 0 900 260"></svg></div>
+      <div class="feed-empty" id="chart-empty" style="display:none; padding:20px 0">Noch keine Ausschüttung erhalten. Sammle heute Gewicht — die erste Verteilung kommt um 00:00 UTC.</div>
+    </div>
+
     <div class="stats">
       <div class="stat">
         <div class="v aqua" id="s-circ">—</div>
-        <div class="l">Token im Umlauf (von 18,25 Mio.)</div>
+        <div class="l">Token im Umlauf (echt verteilt, von 18,25 Mio.)</div>
       </div>
       <div class="stat">
-        <div class="v" id="s-price">—<span class="delta" id="s-price-delta"></span></div>
-        <div class="l">Aktueller Preis pro Token</div>
+        <div class="v" id="s-carry">—</div>
+        <div class="l">Übertrag (Carryover) aus Tagen ohne Gewicht</div>
       </div>
       <div class="stat">
-        <div class="v gold" id="s-mcap">—</div>
-        <div class="l">Marktkapitalisierung (Umlauf)</div>
+        <div class="v" id="s-price">—</div>
+        <div class="l">Preis pro Token (noch kein Handel)</div>
       </div>
       <div class="stat">
-        <div class="v" id="s-fdv">—</div>
-        <div class="l">Voll verwässert (18,25 Mio. × Preis)</div>
+        <div class="v" id="s-mcap">—</div>
+        <div class="l">Marktkapitalisierung (erst mit Handel)</div>
       </div>
-    </div>
-
-    <div class="chart-card">
-      <h3>Deine Token pro Tag</h3>
-      <div class="hint">Tägliche Ausschüttung nach Punktesystem (5.000 × dein Gewicht ÷ Netzwerk-Gewicht) — letzte 30 Tage</div>
-      <div class="chart-scroll"><svg id="chart-earn" viewBox="0 0 900 260"></svg></div>
-    </div>
-
-    <div class="chart-card">
-      <h3>Preis pro Token</h3>
-      <div class="hint">Simulierter Preisverlauf seit Launch (Demo) — in Euro</div>
-      <div class="chart-scroll"><svg id="chart-price" viewBox="0 0 900 260"></svg></div>
     </div>
   </div>
 </main>
 
 <script src="assets/app-core.js"></script>
 <script>
-function mulberry32(seed) {
-  return function () {
-    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
-    var t = Math.imul(seed ^ seed >>> 15, 1 | seed);
-    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
-  };
-}
-function strSeed(s) {
-  var h = 2166136261;
-  for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
-  return h >>> 0;
-}
 function fmt(n, dec) {
   return n.toLocaleString('de-DE', { minimumFractionDigits: dec || 0, maximumFractionDigits: dec || 0 });
 }
-function fmtEur(n, dec) { return fmt(n, dec === undefined ? 2 : dec) + ' €'; }
 
 var ns = 'http://www.w3.org/2000/svg';
 function el(name, attrs, parent) {
@@ -125,152 +129,144 @@ function el(name, attrs, parent) {
   if (parent) parent.appendChild(e);
   return e;
 }
-function grid(svg, W, H, padL, padR, padT, padB, maxV, fmtFn) {
+
+function drawEarnChart(history) {
+  var svg = document.getElementById('chart-earn');
+  svg.innerHTML = '';
+  if (!history.length) {
+    svg.parentElement.style.display = 'none';
+    document.getElementById('chart-empty').style.display = '';
+    return;
+  }
+  svg.parentElement.style.display = '';
+  document.getElementById('chart-empty').style.display = 'none';
+
+  var W = 900, H = 260, padL = 60, padR = 10, padT = 14, padB = 30;
+  var data = history.slice(-30);
+  var maxV = Math.max.apply(null, data.map(function (h) { return h.amount; })) * 1.15;
+  var plotW = W - padL - padR, plotH = H - padT - padB;
+
   [0, 0.5, 1].forEach(function (t) {
-    var y = padT + (H - padT - padB) * (1 - t);
+    var y = padT + plotH * (1 - t);
     el('line', { x1: padL, y1: y, x2: W - padR, y2: y, stroke: 'rgba(255,255,255,0.07)' }, svg);
     var lbl = el('text', { x: padL - 8, y: y + 4, fill: '#9db0c9', 'font-size': 11, 'text-anchor': 'end' }, svg);
-    lbl.textContent = fmtFn(maxV * t);
+    lbl.textContent = fmt(Math.round(maxV * t));
+  });
+
+  var n = data.length;
+  var barW = Math.min(40, plotW / n * 0.62);
+  data.forEach(function (h, i) {
+    var x = padL + (i + 0.5) * (plotW / n);
+    var hh = h.amount / maxV * plotH;
+    el('rect', { x: x - barW / 2, y: padT + plotH - hh, width: barW, height: hh, rx: 2.5, fill: '#2dd4bf', opacity: 0.85 }, svg);
+    var t = el('text', { x: x, y: H - padB + 18, fill: '#9db0c9', 'font-size': 10, 'text-anchor': 'middle' }, svg);
+    t.textContent = h.day.slice(8, 10) + '.' + h.day.slice(5, 7) + '.';
   });
 }
 
-function init() {
+var countdownTimer = null;
+function startCountdown(iso) {
+  if (countdownTimer) clearInterval(countdownTimer);
+  function tick() {
+    var el = document.getElementById('d-countdown');
+    if (!iso) { el.textContent = '—'; return; }
+    var ms = new Date(iso) - Date.now();
+    if (ms <= 0) { el.textContent = 'läuft…'; return; }
+    var h = Math.floor(ms / 3600000), m = Math.floor(ms % 3600000 / 60000), s = Math.floor(ms % 60000 / 1000);
+    el.textContent = (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+  }
+  tick();
+  countdownTimer = setInterval(tick, 1000);
+}
+
+function renderWallet(w) {
   var rec = PS.me();
-  if (!rec) { location.href = 'app.html'; return; }
-  PS.modeBanner();
-  PS.renderNav('wallet');
-
-  var LAUNCH = new Date('2026-01-01T00:00:00');
-  var DAILY_EMISSION = 5000;
-  var TOTAL_SUPPLY = 18250000;
-  var today = new Date(); today.setHours(0, 0, 0, 0);
-  var daysSinceLaunch = Math.max(1, Math.floor((today - LAUNCH) / 86400000));
-  var circulating = daysSinceLaunch * DAILY_EMISSION;
-
-  var priceRand = mulberry32(424242);
-  var prices = [];
-  var p = 0.08;
-  for (var d = 0; d <= daysSinceLaunch; d++) {
-    p = Math.max(0.01, p * (1 + (priceRand() - 0.47) * 0.06));
-    prices.push(p);
-  }
-  var price = prices[prices.length - 1];
-  var priceYesterday = prices[prices.length - 2] || price;
-  var priceDelta = (price - priceYesterday) / priceYesterday * 100;
-
-  var earnRand = mulberry32(strSeed(rec.key));
-  var earnings = [];
-  for (var d2 = 0; d2 < daysSinceLaunch; d2++) {
-    earnings.push(Math.round(6 + earnRand() * 32));
-  }
-  var balance = earnings.reduce(function (a, b) { return a + b; }, 0);
-  var yesterdayEarn = earnings[earnings.length - 1] || 0;
 
   document.getElementById('w-name').textContent = rec.name;
-  document.getElementById('w-balance').textContent = fmt(balance) + ' PST';
-  document.getElementById('w-balance-eur').textContent = '≈ ' + fmtEur(balance * price);
-  document.getElementById('w-yesterday').textContent = '+' + fmt(yesterdayEarn) + ' PST';
-  document.getElementById('s-circ').textContent = fmt(circulating / 1e6, 2) + ' Mio.';
-  document.getElementById('s-price').firstChild.textContent = fmtEur(price, 4);
-  var deltaEl = document.getElementById('s-price-delta');
-  deltaEl.textContent = (priceDelta >= 0 ? '▲ +' : '▼ ') + priceDelta.toFixed(1).replace('.', ',') + ' %';
-  deltaEl.className = 'delta ' + (priceDelta >= 0 ? 'up' : 'down');
-  document.getElementById('s-mcap').textContent = fmtEur(circulating * price, 0);
-  document.getElementById('s-fdv').textContent = fmtEur(TOTAL_SUPPLY * price, 0);
-
-  // Stable-Guthaben & echter Burn aus bezahlten Aktionen
+  document.getElementById('w-balance').textContent = fmt(w.tokens, 2) + ' PST';
+  document.getElementById('w-yesterday').textContent = '+' + fmt(w.yesterday, 2) + ' PST';
   document.getElementById('w-credits').textContent = PS.fmtEur(rec.credits);
   document.getElementById('w-burn').textContent = PS.fmtEur(rec.burn);
 
-  // Standing Card: echte Werte (Revenue-Anchored Closure, vereinfacht ohne Vouches)
-  var NU = 0.10, RHO = 1.0;
-  var commitB = rec.burn;
-  var actionsN = rec.actions;
-  var rate = commitB / Math.max(actionsN, 1);
-  var alphaHat = rate / NU;
-  var gateOpen = actionsN > 0 && alphaHat >= RHO;
+  // Startguthaben-Claim
+  var claimBtn = document.getElementById('btn-claim');
+  var claimHint = document.getElementById('claim-hint');
+  if (rec.startClaimed) {
+    claimBtn.style.display = 'none';
+    claimHint.textContent = '✓ Bereits abgeholt — jede:r Nutzer:in genau einmal.';
+  } else {
+    claimBtn.style.display = '';
+    claimHint.textContent = 'Einmalig pro Konto. Damit kannst du posten, liken und kommentieren.';
+  }
 
-  document.getElementById('st-b').textContent = PS.fmtEur(commitB);
-  document.getElementById('st-n').textContent = fmt(actionsN);
-  document.getElementById('st-r').textContent = fmtEur(rate, 3);
-  document.getElementById('st-alpha').firstChild.textContent = actionsN > 0 ? alphaHat.toFixed(2).replace('.', ',') : '—';
+  // Heutige Verteilung
+  document.getElementById('d-pool').textContent = fmt(w.poolToday);
+  document.getElementById('d-myweight').textContent = fmt(w.todayWeight, 3);
+  document.getElementById('d-netweight').textContent = fmt(w.networkWeight, 3);
+  document.getElementById('d-projected').textContent = '≈ ' + fmt(w.projected, 2) + ' PST';
+  startCountdown(w.nextDistribution);
+
+  // Standing (echte Werte)
+  var NU = 0.10, RHO = 0.2;
+  var rate = rec.burn / Math.max(rec.actions, 1);
+  var alphaHat = rate / NU;
+  var gateOpen = rec.actions > 0 && alphaHat >= RHO;
+  document.getElementById('st-b').textContent = PS.fmtEur(rec.burn);
+  document.getElementById('st-n').textContent = fmt(rec.actions);
+  document.getElementById('st-r').textContent = rate.toFixed(3).replace('.', ',') + ' €';
+  document.getElementById('st-alpha').firstChild.textContent = rec.actions > 0 ? alphaHat.toFixed(2).replace('.', ',') : '—';
   var gateEl = document.getElementById('st-gate');
   gateEl.textContent = gateOpen ? '✓ Gate offen' : '✗ unter Schwelle';
   gateEl.className = 'delta ' + (gateOpen ? 'up' : 'down');
-  if (actionsN === 0) {
+  if (rec.actions === 0) {
     document.getElementById('st-explain').textContent =
-      'Noch keine Aktionen: Poste, kommentiere oder like im Newsfeed — jede bezahlte Aktion erhöht deinen Burn und baut dein Standing auf.';
+      'Noch keine Aktionen: Hole dein Startguthaben und poste, kommentiere oder like im Newsfeed — jede bezahlte Aktion erhöht deinen Burn und baut dein Standing auf.';
   } else if (gateOpen) {
     document.getElementById('st-explain').textContent =
-      'Dein Gate ist offen: Deine Interaktionen zählen mit Standing-Kernel in die Verteilung (5.000 × dein Gewicht ÷ Netzwerk-Gewicht pro Tag). Jede Aktion ohne Einsatz senkt deine Rate — Qualität schlägt Masse.';
+      'Dein Gate ist offen: Deine Interaktionen geben anderen Gewicht — und Engagement auf deinen Inhalten bringt dir Anteile an der täglichen Verteilung. Jede Aktion ohne Einsatz senkt deine Rate.';
   } else {
-    var needed = Math.max(0, actionsN * NU * RHO - commitB);
+    var needed = Math.max(0, rec.actions * NU * RHO - rec.burn);
     document.getElementById('st-explain').textContent =
-      'Dein Standing liegt unter der Schwelle ρ = 1,0: Du nimmst kostenlos teil, trägst aber kein wirtschaftliches Gewicht. Dir fehlen noch ' + PS.fmtEur(needed) + ' Burn (bei ' + fmt(actionsN) + ' Aktionen), um das Gate zu öffnen.';
+      'Dein Standing liegt unter der Schwelle ρ = 0,2: Deine Interaktionen zählen aktuell nicht als Gewicht für andere. Dir fehlen noch ' + PS.fmtEur(needed) + ' Burn (bei ' + fmt(rec.actions) + ' Aktionen), um das Gate zu öffnen.';
   }
 
-  // Chart 1: Token pro Tag (letzte 30 Tage)
-  (function () {
-    var svg = document.getElementById('chart-earn');
-    var W = 900, H = 260, padL = 55, padR = 10, padT = 14, padB = 30;
-    var data = earnings.slice(-30);
-    var maxV = Math.max.apply(null, data) * 1.15;
-    var plotW = W - padL - padR, plotH = H - padT - padB;
-    grid(svg, W, H, padL, padR, padT, padB, maxV, function (v) { return Math.round(v); });
-    var n = data.length;
-    var barW = plotW / n * 0.62;
-    data.forEach(function (v, i) {
-      var x = padL + (i + 0.5) * (plotW / n);
-      var h = v / maxV * plotH;
-      el('rect', { x: x - barW / 2, y: padT + plotH - h, width: barW, height: h, rx: 2.5, fill: '#2dd4bf', opacity: 0.85 }, svg);
-      if (i % 5 === 0 || i === n - 1) {
-        var dte = new Date(today); dte.setDate(dte.getDate() - (n - 1 - i));
-        var t = el('text', { x: x, y: H - padB + 18, fill: '#9db0c9', 'font-size': 10, 'text-anchor': 'middle' }, svg);
-        t.textContent = dte.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
-      }
-    });
-  })();
+  // Verlauf & Netzwerk-Statistik
+  drawEarnChart(w.history || []);
+  document.getElementById('s-circ').textContent = fmt(w.totalDistributed, 0) + ' PST';
+  document.getElementById('s-carry').textContent = fmt(w.carryover, 0) + ' PST';
 
-  // Chart 2: Preisverlauf
-  (function () {
-    var svg = document.getElementById('chart-price');
-    var W = 900, H = 260, padL = 65, padR = 10, padT = 14, padB = 30;
-    var data = prices;
-    var maxV = Math.max.apply(null, data) * 1.1;
-    var plotW = W - padL - padR, plotH = H - padT - padB;
-    grid(svg, W, H, padL, padR, padT, padB, maxV, function (v) { return v.toFixed(3).replace('.', ',') + ' €'; });
+  if (w.local) {
+    document.getElementById('d-myweight').textContent = '—';
+    document.getElementById('d-netweight').textContent = '—';
+    document.getElementById('d-projected').textContent = 'nur im Live-Modus';
+    document.getElementById('s-circ').textContent = '—';
+    document.getElementById('s-carry').textContent = '—';
+  }
 
-    function x(i) { return padL + i / (data.length - 1) * plotW; }
-    function y(v) { return padT + plotH - v / maxV * plotH; }
-
-    var defs = el('defs', {}, svg);
-    var grad = el('linearGradient', { id: 'pgrad', x1: 0, y1: 0, x2: 0, y2: 1 }, defs);
-    el('stop', { offset: '0%', 'stop-color': '#0ea5e9', 'stop-opacity': 0.35 }, grad);
-    el('stop', { offset: '100%', 'stop-color': '#0ea5e9', 'stop-opacity': 0 }, grad);
-
-    var line = data.map(function (v, i) { return (i === 0 ? 'M' : 'L') + x(i).toFixed(1) + ',' + y(v).toFixed(1); }).join(' ');
-    el('path', { d: line + ' L' + x(data.length - 1).toFixed(1) + ',' + (padT + plotH) + ' L' + padL + ',' + (padT + plotH) + ' Z', fill: 'url(#pgrad)' }, svg);
-    el('path', { d: line, fill: 'none', stroke: '#0ea5e9', 'stroke-width': 2.2 }, svg);
-    el('circle', { cx: x(data.length - 1), cy: y(data[data.length - 1]), r: 4, fill: '#2dd4bf' }, svg);
-
-    [0, 0.25, 0.5, 0.75, 1].forEach(function (t) {
-      var i = Math.round(t * (data.length - 1));
-      var dte = new Date(LAUNCH); dte.setDate(dte.getDate() + i);
-      var lbl = el('text', { x: x(i), y: H - padB + 18, fill: '#9db0c9', 'font-size': 10, 'text-anchor': t === 0 ? 'start' : (t === 1 ? 'end' : 'middle') }, svg);
-      lbl.textContent = dte.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
-    });
-  })();
+  PS.renderNav('wallet');
 }
 
-function demoTopUp() {
-  PS.topUp().then(function (me) {
-    document.getElementById('w-credits').textContent = PS.fmtEur(me.credits);
-    PS.renderNav('wallet');
+function doClaim() {
+  PS.claimStart().then(function () {
+    return PS.wallet();
+  }).then(renderWallet).catch(function (e) {
+    document.getElementById('claim-hint').textContent = e.message;
   });
 }
 
+function refresh() {
+  return PS.wallet().then(renderWallet);
+}
+
 document.addEventListener('DOMContentLoaded', function () {
-  PS.init().then(init);
+  PS.init().then(function () {
+    if (!PS.me()) { location.href = 'app.html'; return; }
+    PS.modeBanner();
+    refresh();
+    if (PS.getMode() === 'server') {
+      setInterval(refresh, 15000); // Gewichte & Stände live halten
+    }
+  });
 });
 </script>
 

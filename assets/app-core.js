@@ -76,7 +76,7 @@ var PS = (function () {
   function lSession() { return localStorage.getItem(SESSION_KEY); }
 
   function lEnsure(rec) {
-    if (rec && rec.credits === undefined) { rec.credits = START_CREDITS; rec.burn = 0; rec.actions = 0; }
+    if (rec && rec.credits === undefined) { rec.credits = 0; rec.burn = 0; rec.actions = 0; }
     return rec;
   }
   function lMe() {
@@ -86,7 +86,8 @@ var PS = (function () {
     return {
       key: k, name: rec.name, email: rec.email || null, notifyConsent: !!rec.notifyConsent,
       createdAt: rec.createdAt, avatar: rec.avatar || null, guest: !!rec.guest,
-      credits: rec.credits, burn: rec.burn, actions: rec.actions
+      credits: rec.credits, burn: rec.burn, actions: rec.actions,
+      tokens: rec.tokens || 0, startClaimed: !!rec.startClaimed
     };
   }
   function lCharge(action) {
@@ -160,7 +161,7 @@ var PS = (function () {
     var k = name.toLowerCase();
     return hashStr(k + ':' + pass).then(function (ph) {
       var users = lUsers();
-      users[k] = { name: name, passHash: ph, email: email || null, notifyConsent: !!email, createdAt: new Date().toISOString(), avatar: null, credits: START_CREDITS, burn: 0, actions: 0 };
+      users[k] = { name: name, passHash: ph, email: email || null, notifyConsent: !!email, createdAt: new Date().toISOString(), avatar: null, credits: 0, burn: 0, actions: 0, tokens: 0, startClaimed: false };
       lSaveUsers(users);
       localStorage.setItem(SESSION_KEY, k);
       cachedMe = lMe(); return cachedMe;
@@ -190,7 +191,7 @@ var PS = (function () {
     }
     var users = lUsers();
     if (!users[GUEST_KEY]) {
-      users[GUEST_KEY] = { name: 'Gast', guest: true, passHash: null, email: null, notifyConsent: false, createdAt: new Date().toISOString(), avatar: null, credits: START_CREDITS, burn: 0, actions: 0 };
+      users[GUEST_KEY] = { name: 'Gast', guest: true, passHash: null, email: null, notifyConsent: false, createdAt: new Date().toISOString(), avatar: null, credits: 0, burn: 0, actions: 0, tokens: 0, startClaimed: false };
       lSaveUsers(users);
     }
     localStorage.setItem(SESSION_KEY, GUEST_KEY);
@@ -209,7 +210,7 @@ var PS = (function () {
     return hashStr(nk + ':' + pass).then(function (ph) {
       var users = lUsers();
       var g = lEnsure(users[GUEST_KEY]) || {};
-      users[nk] = { name: name, passHash: ph, email: email || null, notifyConsent: !!email, createdAt: g.createdAt || new Date().toISOString(), avatar: g.avatar || null, credits: g.credits, burn: g.burn, actions: g.actions };
+      users[nk] = { name: name, passHash: ph, email: email || null, notifyConsent: !!email, createdAt: g.createdAt || new Date().toISOString(), avatar: g.avatar || null, credits: g.credits, burn: g.burn, actions: g.actions, tokens: g.tokens || 0, startClaimed: !!g.startClaimed };
       delete users[GUEST_KEY];
       lSaveUsers(users);
       var posts = lPosts();
@@ -265,14 +266,25 @@ var PS = (function () {
     cachedMe = lMe(); return Promise.resolve(cachedMe);
   }
 
-  function topUp() {
+  function claimStart() {
     if (mode === 'server') {
-      return call('/api/topup', 'POST', {}).then(function (d) { cachedMe = d.me; return d.me; });
+      return call('/api/claim-start', 'POST', {}).then(function (d) { cachedMe = d.me; return d.me; });
     }
     var users = lUsers();
     var rec = lEnsure(users[lSession()]);
-    if (rec) { rec.credits = round2(rec.credits + 10); lSaveUsers(users); }
+    if (!rec) return Promise.reject(new Error('Nicht angemeldet.'));
+    if (rec.startClaimed) return Promise.reject(new Error('Du hast dein Startguthaben bereits abgeholt.'));
+    rec.startClaimed = true;
+    rec.credits = round2(rec.credits + START_CREDITS);
+    lSaveUsers(users);
     cachedMe = lMe(); return Promise.resolve(cachedMe);
+  }
+
+  function wallet() {
+    if (mode === 'server') {
+      return call('/api/wallet').then(function (d) { cachedMe = d.me; return d.wallet; });
+    }
+    return Promise.resolve({ local: true, tokens: 0, history: [], yesterday: 0, todayWeight: 0, networkWeight: 0, projected: 0, poolToday: 5000, carryover: 0, totalDistributed: 0, nextDistribution: null });
   }
 
   function posts() {
@@ -394,7 +406,8 @@ var PS = (function () {
     init: init, getMode: function () { return mode; },
     me: function () { return cachedMe; }, refreshMe: refreshMe,
     register: register, login: login, guest: guest, upgrade: upgrade,
-    logout: logout, deleteAccount: deleteAccount, setAvatar: setAvatar, topUp: topUp,
+    logout: logout, deleteAccount: deleteAccount, setAvatar: setAvatar,
+    claimStart: claimStart, wallet: wallet,
     posts: posts, addPost: addPost, react: react,
     addComment: addComment, delComment: delComment, delPost: delPost,
     fmtEur: fmtEur, avatarHtml: avatarHtml, escapeHtml: escapeHtml, timeAgo: timeAgo,

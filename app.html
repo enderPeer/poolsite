@@ -104,7 +104,7 @@
       <div class="info-row"><span class="k">Mitglied seit</span><span class="v" id="pf-since">—</span></div>
       <div class="info-row"><span class="k">Stable-Guthaben (EUR)</span><span class="v" id="pf-credits">—</span></div>
       <div class="info-row"><span class="k">🔥 Burn (Commitment B)</span><span class="v burn-chip" id="pf-burn">—</span></div>
-      <div class="info-row"><span class="k">Token-Guthaben</span><span class="v">siehe Wallet</span></div>
+      <div class="info-row"><span class="k">Token-Guthaben</span><span class="v" id="pf-tokens">—</span></div>
     </div>
 
     <div class="msg" id="msg-profile"></div>
@@ -223,6 +223,7 @@ function render() {
     new Date(rec.createdAt).toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' });
   document.getElementById('pf-credits').textContent = PS.fmtEur(rec.credits);
   document.getElementById('pf-burn').textContent = PS.fmtEur(rec.burn) + ' (' + rec.actions + ' Aktionen)';
+  document.getElementById('pf-tokens').textContent = (rec.tokens || 0).toLocaleString('de-DE', { maximumFractionDigits: 2 }) + ' PST';
   document.getElementById('btn-delete').textContent = guest ? 'Gast-Daten löschen' : 'Konto löschen';
   document.getElementById('avatar').innerHTML = PS.avatarHtml(rec);
 }
