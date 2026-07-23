@@ -44,7 +44,12 @@
   }
   nav a { color: var(--muted); text-decoration: none; margin-left: 22px; font-size: .95rem; }
   nav a:hover { color: var(--text); }
-  @media (max-width: 720px) { nav .nav-links { display: none; } }
+  @media (max-width: 720px) { nav .nav-links a:not(.app-link) { display: none; } }
+  nav a.app-link {
+    padding: 8px 18px; border-radius: 10px; font-weight: 700;
+    background: linear-gradient(90deg, var(--aqua), var(--aqua-deep)); color: #04202a;
+  }
+  nav a.app-link:hover { color: #04202a; box-shadow: 0 6px 18px rgba(14,165,233,.35); }
 
   /* Hero */
   .hero { padding: 96px 0 72px; text-align: center; position: relative; overflow: hidden; }
@@ -157,6 +162,7 @@
       <a href="#tokenomics">Tokenomics</a>
       <a href="#erloese">Erlösmodell</a>
       <a href="#roadmap">Roadmap</a>
+      <a class="app-link" href="app.html">App&nbsp;→</a>
     </nav>
   </div>
 </header>
@@ -170,8 +176,8 @@
       Wer das Netzwerk mit aufbaut, wird Miteigentümer und profitiert direkt von den Einnahmen.
     </p>
     <div class="cta-row">
-      <a class="btn btn-primary" href="#konzept">So funktioniert's</a>
-      <a class="btn btn-ghost" href="#tokenomics">Tokenomics ansehen</a>
+      <a class="btn btn-primary" href="app.html">Konto erstellen →</a>
+      <a class="btn btn-ghost" href="#konzept">So funktioniert's</a>
     </div>
   </div>
 </section>

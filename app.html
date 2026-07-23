@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PoolSite App — Login</title>
+<meta name="description" content="PoolSite App — melde dich an oder erstelle ein Konto.">
+<style>
+  :root {
+    --bg: #0b1220;
+    --bg-soft: #101a2e;
+    --card: #16233c;
+    --line: rgba(255,255,255,.08);
+    --text: #e8eef7;
+    --muted: #9db0c9;
+    --aqua: #2dd4bf;
+    --aqua-deep: #0ea5e9;
+    --danger: #f87171;
+    --radius: 16px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+  header {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(11,18,32,.85);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+  .nav { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.15rem; color: var(--text); text-decoration: none; }
+  .logo-mark {
+    width: 32px; height: 32px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--aqua), var(--aqua-deep));
+    display: grid; place-items: center; font-size: 1rem; color: #04202a; font-weight: 800;
+  }
+  .nav a.back { color: var(--muted); text-decoration: none; font-size: .95rem; }
+  .nav a.back:hover { color: var(--text); }
+
+  .beta-banner {
+    background: rgba(251,191,36,.08); border-bottom: 1px solid rgba(251,191,36,.2);
+    color: #fcd34d; font-size: .82rem; text-align: center; padding: 8px 16px;
+  }
+
+  main { display: grid; place-items: center; padding: 48px 16px; }
+  .panel {
+    width: 100%; max-width: 440px;
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 36px;
+  }
+  .panel h1 { font-size: 1.5rem; font-weight: 800; margin-bottom: 6px; }
+  .panel .sub { color: var(--muted); font-size: .95rem; margin-bottom: 26px; }
+
+  .tabs { display: flex; background: var(--bg-soft); border-radius: 12px; padding: 4px; margin-bottom: 26px; }
+  .tabs button {
+    flex: 1; padding: 10px; border: none; border-radius: 9px; cursor: pointer;
+    background: transparent; color: var(--muted); font-size: .95rem; font-weight: 600;
+    font-family: inherit;
+  }
+  .tabs button.active { background: var(--card); color: var(--text); box-shadow: 0 2px 8px rgba(0,0,0,.3); }
+
+  label { display: block; font-size: .88rem; font-weight: 600; margin: 16px 0 6px; }
+  label .opt { color: var(--muted); font-weight: 400; }
+  input[type=text], input[type=password], input[type=email] {
+    width: 100%; padding: 12px 14px; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--bg-soft); color: var(--text);
+    font-size: 1rem; font-family: inherit; outline: none;
+  }
+  input:focus { border-color: var(--aqua); }
+  .hint { font-size: .78rem; color: var(--muted); margin-top: 6px; }
+  .consent {
+    margin-top: 8px; padding: 10px 12px; border-radius: 10px;
+    background: rgba(45,212,191,.07); border: 1px solid rgba(45,212,191,.18);
+    font-size: .78rem; color: var(--muted);
+  }
+  .consent strong { color: var(--aqua); }
+
+  .btn {
+    width: 100%; margin-top: 24px; padding: 13px; border: none; border-radius: 12px;
+    background: linear-gradient(90deg, var(--aqua), var(--aqua-deep)); color: #04202a;
+    font-size: 1rem; font-weight: 700; cursor: pointer; font-family: inherit;
+    transition: transform .15s, box-shadow .15s;
+  }
+  .btn:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(14,165,233,.3); }
+  .btn.secondary { background: var(--bg-soft); color: var(--text); border: 1px solid var(--line); }
+  .btn.danger-ghost { background: transparent; color: var(--danger); border: 1px solid rgba(248,113,113,.3); }
+
+  .msg { margin-top: 16px; padding: 11px 14px; border-radius: 10px; font-size: .88rem; display: none; }
+  .msg.error { display: block; background: rgba(248,113,113,.1); border: 1px solid rgba(248,113,113,.3); color: var(--danger); }
+  .msg.ok { display: block; background: rgba(45,212,191,.1); border: 1px solid rgba(45,212,191,.3); color: var(--aqua); }
+
+  /* Profil */
+  .profile-head { text-align: center; margin-bottom: 26px; }
+  .avatar-wrap { position: relative; width: 120px; height: 120px; margin: 0 auto 14px; }
+  .avatar {
+    width: 120px; height: 120px; border-radius: 50%; object-fit: cover;
+    border: 3px solid var(--aqua); background: var(--bg-soft);
+    display: grid; place-items: center; font-size: 2.6rem; font-weight: 800; color: var(--aqua);
+    overflow: hidden;
+  }
+  .avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .avatar-edit {
+    position: absolute; right: 0; bottom: 4px;
+    width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--card);
+    background: linear-gradient(135deg, var(--aqua), var(--aqua-deep)); color: #04202a;
+    display: grid; place-items: center; cursor: pointer; font-size: 1rem;
+  }
+  .profile-head h1 { font-size: 1.4rem; }
+  .profile-head .sub { margin-bottom: 0; }
+
+  .info-list { margin-top: 8px; }
+  .info-row {
+    display: flex; justify-content: space-between; gap: 12px;
+    padding: 13px 2px; border-bottom: 1px solid var(--line); font-size: .92rem;
+  }
+  .info-row:last-child { border-bottom: none; }
+  .info-row .k { color: var(--muted); }
+  .info-row .v { text-align: right; word-break: break-all; }
+  .tag { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: .78rem; font-weight: 600; }
+  .tag.on { background: rgba(45,212,191,.12); color: var(--aqua); }
+  .tag.off { background: rgba(255,255,255,.06); color: var(--muted); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <a class="logo" href="index.html"><span class="logo-mark">P</span> PoolSite</a>
+    <a class="back" href="index.html">← Zurück zur Website</a>
+  </div>
+</header>
+<div class="beta-banner">
+  ⚠️ Prototyp-Version: Dein Konto wird nur lokal in diesem Browser gespeichert. Echte Konten &amp; Token-Ausschüttung folgen mit dem offiziellen Launch.
+</div>
+
+<main>
+
+  <!-- Ansicht: Login / Registrierung -->
+  <div class="panel" id="view-auth">
+    <h1>Willkommen bei PoolSite</h1>
+    <p class="sub">Melde dich an oder erstelle dein Konto.</p>
+
+    <div class="tabs">
+      <button id="tab-login" class="active" onclick="showTab('login')">Anmelden</button>
+      <button id="tab-register" onclick="showTab('register')">Registrieren</button>
+    </div>
+
+    <!-- Login -->
+    <form id="form-login" onsubmit="return doLogin(event)">
+      <label for="li-user">Nutzername</label>
+      <input type="text" id="li-user" autocomplete="username" required>
+      <label for="li-pass">Passwort</label>
+      <input type="password" id="li-pass" autocomplete="current-password" required>
+      <button class="btn" type="submit">Anmelden</button>
+      <div class="msg" id="msg-login"></div>
+    </form>
+
+    <!-- Registrierung -->
+    <form id="form-register" style="display:none" onsubmit="return doRegister(event)">
+      <label for="rg-user">Nutzername</label>
+      <input type="text" id="rg-user" autocomplete="username" required maxlength="30">
+      <div class="hint">2–30 Zeichen. Buchstaben, Zahlen, Punkt, Unterstrich.</div>
+
+      <label for="rg-pass">Passwort</label>
+      <input type="password" id="rg-pass" autocomplete="new-password" required minlength="4">
+      <div class="hint">Mindestens 4 Zeichen.</div>
+
+      <label for="rg-email">E-Mail <span class="opt">(freiwillig — für Kontowiederherstellung &amp; Benachrichtigungen)</span></label>
+      <input type="email" id="rg-email" autocomplete="email" placeholder="du@beispiel.de">
+      <div class="consent">
+        <strong>Hinweis:</strong> Wenn du eine E-Mail-Adresse angibst, stimmst du zu, von PoolSite
+        Benachrichtigungen (z.&nbsp;B. Projekt-Updates und Hinweise zur Kontowiederherstellung) zu erhalten.
+        Ohne E-Mail-Angabe ist keine Kontowiederherstellung möglich.
+      </div>
+
+      <button class="btn" type="submit">Konto erstellen</button>
+      <div class="msg" id="msg-register"></div>
+    </form>
+  </div>
+
+  <!-- Ansicht: Profil -->
+  <div class="panel" id="view-profile" style="display:none">
+    <div class="profile-head">
+      <div class="avatar-wrap">
+        <div class="avatar" id="avatar"><span id="avatar-initial">?</span></div>
+        <div class="avatar-edit" title="Profilbild ändern" onclick="document.getElementById('avatar-file').click()">📷</div>
+        <input type="file" id="avatar-file" accept="image/*" style="display:none" onchange="uploadAvatar(this)">
+      </div>
+      <h1 id="pf-name">—</h1>
+      <p class="sub">Dein PoolSite-Profil</p>
+    </div>
+
+    <div class="info-list">
+      <div class="info-row"><span class="k">Nutzername</span><span class="v" id="pf-user">—</span></div>
+      <div class="info-row"><span class="k">E-Mail</span><span class="v" id="pf-email">—</span></div>
+      <div class="info-row"><span class="k">Benachrichtigungen</span><span class="v" id="pf-notify">—</span></div>
+      <div class="info-row"><span class="k">Mitglied seit</span><span class="v" id="pf-since">—</span></div>
+      <div class="info-row"><span class="k">Token-Guthaben</span><span class="v">0 <span style="color:var(--muted)">(Ausschüttung startet mit dem Launch)</span></span></div>
+    </div>
+
+    <div class="msg" id="msg-profile"></div>
+    <button class="btn secondary" style="margin-top:20px" onclick="logout()">Abmelden</button>
+    <button class="btn danger-ghost" style="margin-top:12px" onclick="deleteAccount()">Konto löschen</button>
+  </div>
+
+</main>
+
+<script>
+var USERS_KEY = 'poolsite_users';
+var SESSION_KEY = 'poolsite_session';
+
+function loadUsers() {
+  try { return JSON.parse(localStorage.getItem(USERS_KEY)) || {}; } catch (e) { return {}; }
+}
+function saveUsers(u) { localStorage.setItem(USERS_KEY, JSON.stringify(u)); }
+
+async function hash(str) {
+  if (window.crypto && crypto.subtle) {
+    var buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+    return Array.from(new Uint8Array(buf)).map(function (b) { return b.toString(16).padStart(2, '0'); }).join('');
+  }
+  // Fallback für unsichere Kontexte (nur Demo)
+  var h = 0;
+  for (var i = 0; i < str.length; i++) { h = (h * 31 + str.charCodeAt(i)) >>> 0; }
+  return 'fb_' + h.toString(16);
+}
+
+function showTab(which) {
+  document.getElementById('tab-login').classList.toggle('active', which === 'login');
+  document.getElementById('tab-register').classList.toggle('active', which === 'register');
+  document.getElementById('form-login').style.display = which === 'login' ? '' : 'none';
+  document.getElementById('form-register').style.display = which === 'register' ? '' : 'none';
+}
+
+function setMsg(id, text, type) {
+  var el = document.getElementById(id);
+  el.className = 'msg' + (text ? ' ' + type : '');
+  el.textContent = text || '';
+}
+
+async function doRegister(ev) {
+  ev.preventDefault();
+  var user = document.getElementById('rg-user').value.trim();
+  var pass = document.getElementById('rg-pass').value;
+  var email = document.getElementById('rg-email').value.trim();
+
+  if (!/^[A-Za-z0-9._]{2,30}$/.test(user)) {
+    setMsg('msg-register', 'Nutzername: 2–30 Zeichen, nur Buchstaben, Zahlen, Punkt und Unterstrich.', 'error');
+    return false;
+  }
+  if (pass.length < 4) {
+    setMsg('msg-register', 'Das Passwort muss mindestens 4 Zeichen haben.', 'error');
+    return false;
+  }
+  var users = loadUsers();
+  var key = user.toLowerCase();
+  if (users[key]) {
+    setMsg('msg-register', 'Dieser Nutzername ist bereits vergeben.', 'error');
+    return false;
+  }
+  users[key] = {
+    name: user,
+    passHash: await hash(key + ':' + pass),
+    email: email || null,
+    notifyConsent: !!email,
+    createdAt: new Date().toISOString(),
+    avatar: null
+  };
+  saveUsers(users);
+  localStorage.setItem(SESSION_KEY, key);
+  render();
+  return false;
+}
+
+async function doLogin(ev) {
+  ev.preventDefault();
+  var user = document.getElementById('li-user').value.trim().toLowerCase();
+  var pass = document.getElementById('li-pass').value;
+  var users = loadUsers();
+  var rec = users[user];
+  if (!rec || rec.passHash !== await hash(user + ':' + pass)) {
+    setMsg('msg-login', 'Nutzername oder Passwort ist falsch.', 'error');
+    return false;
+  }
+  localStorage.setItem(SESSION_KEY, user);
+  render();
+  return false;
+}
+
+function logout() {
+  localStorage.removeItem(SESSION_KEY);
+  render();
+}
+
+function deleteAccount() {
+  if (!confirm('Konto wirklich endgültig löschen?')) return;
+  var key = localStorage.getItem(SESSION_KEY);
+  var users = loadUsers();
+  delete users[key];
+  saveUsers(users);
+  localStorage.removeItem(SESSION_KEY);
+  render();
+}
+
+function uploadAvatar(input) {
+  var file = input.files && input.files[0];
+  if (!file) return;
+  if (!/^image\//.test(file.type)) {
+    setMsg('msg-profile', 'Bitte wähle eine Bilddatei aus.', 'error');
+    return;
+  }
+  var reader = new FileReader();
+  reader.onload = function (e) {
+    var img = new Image();
+    img.onload = function () {
+      // auf max. 256px verkleinern, damit localStorage nicht überläuft
+      var size = 256;
+      var canvas = document.createElement('canvas');
+      canvas.width = size; canvas.height = size;
+      var ctx = canvas.getContext('2d');
+      var min = Math.min(img.width, img.height);
+      ctx.drawImage(img, (img.width - min) / 2, (img.height - min) / 2, min, min, 0, 0, size, size);
+      var dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+      var key = localStorage.getItem(SESSION_KEY);
+      var users = loadUsers();
+      if (!users[key]) return;
+      users[key].avatar = dataUrl;
+      try {
+        saveUsers(users);
+        setMsg('msg-profile', 'Profilbild aktualisiert. ✓', 'ok');
+      } catch (err) {
+        setMsg('msg-profile', 'Bild zu groß für den lokalen Speicher.', 'error');
+      }
+      render();
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+  input.value = '';
+}
+
+function render() {
+  var key = localStorage.getItem(SESSION_KEY);
+  var users = loadUsers();
+  var rec = key && users[key];
+  document.getElementById('view-auth').style.display = rec ? 'none' : '';
+  document.getElementById('view-profile').style.display = rec ? '' : 'none';
+  if (!rec) return;
+
+  document.getElementById('pf-name').textContent = rec.name;
+  document.getElementById('pf-user').textContent = '@' + rec.name;
+  document.getElementById('pf-email').textContent = rec.email || 'nicht angegeben';
+  var notify = document.getElementById('pf-notify');
+  notify.innerHTML = rec.notifyConsent
+    ? '<span class="tag on">aktiviert</span>'
+    : '<span class="tag off">deaktiviert</span>';
+  var d = new Date(rec.createdAt);
+  document.getElementById('pf-since').textContent = d.toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' });
+
+  var avatar = document.getElementById('avatar');
+  if (rec.avatar) {
+    avatar.innerHTML = '<img src="' + rec.avatar + '" alt="Profilbild">';
+  } else {
+    avatar.innerHTML = '<span>' + rec.name.charAt(0).toUpperCase() + '</span>';
+  }
+}
+
+render();
+</script>
+
+</body>
+</html>
