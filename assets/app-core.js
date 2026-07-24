@@ -294,6 +294,24 @@ var PS = (function () {
     return Promise.resolve({ local: true, totals: {}, daily: [] });
   }
 
+  /* Freunde & Chat — nur im Live-Modus */
+  var LOCAL_ONLY = 'Freunde & Chat sind nur im Live-Modus (mit Server) verfügbar.';
+  function serverOnly(fn) {
+    if (mode !== 'server') return Promise.reject(new Error(LOCAL_ONLY));
+    return fn();
+  }
+  function friends() {
+    if (mode !== 'server') return Promise.resolve({ local: true, friends: [], requestsIn: [], requestsOut: [] });
+    return call('/api/friends');
+  }
+  function searchUsers(q) { return serverOnly(function () { return call('/api/users?q=' + encodeURIComponent(q)).then(function (d) { return d.users; }); }); }
+  function requestFriend(k) { return serverOnly(function () { return call('/api/friends/request', 'POST', { to: k }); }); }
+  function acceptFriend(k) { return serverOnly(function () { return call('/api/friends/accept', 'POST', { from: k }); }); }
+  function declineFriend(k) { return serverOnly(function () { return call('/api/friends/decline', 'POST', { from: k }); }); }
+  function unfriend(k) { return serverOnly(function () { return call('/api/friends/' + k, 'DELETE'); }); }
+  function chat(k) { return serverOnly(function () { return call('/api/chat/' + k); }); }
+  function sendMessage(k, text) { return serverOnly(function () { return call('/api/chat/' + k, 'POST', { text: text }); }); }
+
   function posts() {
     if (mode === 'server') {
       return call('/api/posts').then(function (d) { return d.posts; });
@@ -386,6 +404,7 @@ var PS = (function () {
       { id: 'profile', label: '👤 Profil', href: 'app.html' },
       { id: 'wallet', label: '💰 Wallet', href: 'wallet.html' },
       { id: 'feed', label: '📰 Newsfeed', href: 'feed.html' },
+      { id: 'friends', label: '👥 Freunde', href: 'friends.html' },
       { id: 'stats', label: '📊 Key Numbers', href: 'stats.html' }
     ];
     var credits = cachedMe ? cachedMe.credits : 0;
@@ -416,6 +435,9 @@ var PS = (function () {
     register: register, login: login, guest: guest, upgrade: upgrade,
     logout: logout, deleteAccount: deleteAccount, setAvatar: setAvatar,
     claimStart: claimStart, wallet: wallet, stats: stats,
+    friends: friends, searchUsers: searchUsers, requestFriend: requestFriend,
+    acceptFriend: acceptFriend, declineFriend: declineFriend, unfriend: unfriend,
+    chat: chat, sendMessage: sendMessage,
     posts: posts, addPost: addPost, react: react,
     addComment: addComment, delComment: delComment, delPost: delPost,
     fmtEur: fmtEur, avatarHtml: avatarHtml, escapeHtml: escapeHtml, timeAgo: timeAgo,

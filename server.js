@@ -30,6 +30,8 @@ function loadDb() {
   db.users = db.users || {}; db.posts = db.posts || []; db.sessions = db.sessions || {};
   db.events = db.events || [];
   db.stats = db.stats || {};
+  db.friendRequests = db.friendRequests || [];
+  db.messages = db.messages || [];
   if (!db.meta) db.meta = { lastDay: dayStr(Date.now() - 86400000), carryover: 0, totalDistributed: 0 };
 }
 
@@ -292,6 +294,13 @@ function handleApi(req, res, pathname, body) {
     });
     delete db.users[key];
     for (const t of Object.keys(db.sessions)) if (db.sessions[t] === key) delete db.sessions[t];
+    db.friendRequests = db.friendRequests.filter(r => r.from !== key && r.to !== key);
+    db.messages = db.messages.filter(m => m.from !== key && m.to !== key);
+    for (const k of Object.keys(db.users)) {
+      const u = db.users[k];
+      if (u.friends) u.friends = u.friends.filter(f => f !== key);
+      if (u.lastRead) delete u.lastRead[key];
+    }
     saveDb();
     return json(res, 200, { ok: true });
   }
@@ -317,6 +326,13 @@ function handleApi(req, res, pathname, body) {
       (p.comments || []).forEach(c => { if (c.author === key) c.author = nk; });
     });
     for (const t of Object.keys(db.sessions)) if (db.sessions[t] === key) db.sessions[t] = nk;
+    db.friendRequests.forEach(r => { if (r.from === key) r.from = nk; if (r.to === key) r.to = nk; });
+    db.messages.forEach(m => { if (m.from === key) m.from = nk; if (m.to === key) m.to = nk; });
+    for (const k of Object.keys(db.users)) {
+      const u = db.users[k];
+      if (u.friends) u.friends = u.friends.map(f => f === key ? nk : f);
+      if (u.lastRead && u.lastRead[key] !== undefined) { u.lastRead[nk] = u.lastRead[key]; delete u.lastRead[key]; }
+    }
     saveDb();
     return json(res, 200, { me: mePayload(nk) });
   }
@@ -367,6 +383,128 @@ function handleApi(req, res, pathname, body) {
         nextDistribution: nextMidnight.toISOString()
       }
     });
+  }
+
+  /* ---------- Freunde & Chat ---------- */
+  function ensureSocial(u) { u.friends = u.friends || []; u.lastRead = u.lastRead || {}; }
+  function relationTo(k) {
+    ensureSocial(me);
+    if (me.friends.indexOf(k) >= 0) return 'friend';
+    if (db.friendRequests.some(r => r.from === key && r.to === k)) return 'out';
+    if (db.friendRequests.some(r => r.from === k && r.to === key)) return 'in';
+    return 'none';
+  }
+
+  if (pathname === '/api/users' && req.method === 'GET') {
+    const qs = new URLSearchParams((req.url.split('?')[1] || ''));
+    const q = String(qs.get('q') || '').trim().toLowerCase();
+    if (q.length < 2) return json(res, 200, { users: [] });
+    const out = [];
+    for (const k of Object.keys(db.users)) {
+      if (k === key) continue;
+      const u = db.users[k];
+      if (u.name.toLowerCase().indexOf(q) < 0) continue;
+      out.push({ key: k, name: u.name, avatar: u.avatar || null, guest: !!u.guest, relation: relationTo(k) });
+      if (out.length >= 20) break;
+    }
+    return json(res, 200, { users: out });
+  }
+
+  if (pathname === '/api/friends' && req.method === 'GET') {
+    ensureSocial(me);
+    const friends = me.friends.filter(k => db.users[k]).map(k => {
+      const last = me.lastRead[k] || '1970';
+      const unread = db.messages.filter(m => m.from === k && m.to === key && m.at > last).length;
+      return { key: k, name: db.users[k].name, avatar: db.users[k].avatar || null, unread: unread };
+    });
+    const requestsIn = db.friendRequests.filter(r => r.to === key && db.users[r.from])
+      .map(r => ({ key: r.from, name: db.users[r.from].name, avatar: db.users[r.from].avatar || null }));
+    const requestsOut = db.friendRequests.filter(r => r.from === key && db.users[r.to])
+      .map(r => ({ key: r.to, name: db.users[r.to].name, avatar: db.users[r.to].avatar || null }));
+    return json(res, 200, { friends: friends, requestsIn: requestsIn, requestsOut: requestsOut });
+  }
+
+  if (pathname === '/api/friends/request' && req.method === 'POST') {
+    const to = String(body.to || '');
+    const target = db.users[to];
+    ensureSocial(me);
+    if (!target || to === key) return json(res, 400, { error: 'Nutzer nicht gefunden.' });
+    if (me.friends.indexOf(to) >= 0) return json(res, 400, { error: 'Ihr seid bereits befreundet.' });
+    if (db.friendRequests.some(r => r.from === key && r.to === to)) return json(res, 400, { error: 'Anfrage bereits gesendet.' });
+    // Gegenanfrage vorhanden? Dann direkt Freunde werden.
+    const reverse = db.friendRequests.findIndex(r => r.from === to && r.to === key);
+    if (reverse >= 0) {
+      db.friendRequests.splice(reverse, 1);
+      ensureSocial(target);
+      me.friends.push(to); target.friends.push(key);
+      saveDb();
+      return json(res, 200, { ok: true, becameFriends: true });
+    }
+    db.friendRequests.push({ from: key, to: to, at: new Date().toISOString() });
+    saveDb();
+    return json(res, 200, { ok: true, becameFriends: false });
+  }
+
+  if (pathname === '/api/friends/accept' && req.method === 'POST') {
+    const from = String(body.from || '');
+    const idx = db.friendRequests.findIndex(r => r.from === from && r.to === key);
+    if (idx < 0) return json(res, 404, { error: 'Anfrage nicht gefunden.' });
+    db.friendRequests.splice(idx, 1);
+    const other = db.users[from];
+    if (other) {
+      ensureSocial(me); ensureSocial(other);
+      if (me.friends.indexOf(from) < 0) me.friends.push(from);
+      if (other.friends.indexOf(key) < 0) other.friends.push(key);
+    }
+    saveDb();
+    return json(res, 200, { ok: true });
+  }
+
+  if (pathname === '/api/friends/decline' && req.method === 'POST') {
+    const from = String(body.from || '');
+    db.friendRequests = db.friendRequests.filter(r => !(r.from === from && r.to === key));
+    saveDb();
+    return json(res, 200, { ok: true });
+  }
+
+  const mUnfriend = pathname.match(/^\/api\/friends\/([\w]+)$/);
+  if (mUnfriend && req.method === 'DELETE') {
+    const other = db.users[mUnfriend[1]];
+    ensureSocial(me);
+    me.friends = me.friends.filter(k => k !== mUnfriend[1]);
+    if (other) { ensureSocial(other); other.friends = other.friends.filter(k => k !== key); }
+    saveDb();
+    return json(res, 200, { ok: true });
+  }
+
+  const mChat = pathname.match(/^\/api\/chat\/([\w]+)$/);
+  if (mChat && req.method === 'GET') {
+    const other = mChat[1];
+    ensureSocial(me);
+    if (me.friends.indexOf(other) < 0 || !db.users[other]) return json(res, 403, { error: 'Ihr seid nicht befreundet.' });
+    const msgs = db.messages
+      .filter(m => (m.from === key && m.to === other) || (m.from === other && m.to === key))
+      .sort((a, b) => a.at < b.at ? -1 : 1)
+      .slice(-200)
+      .map(m => ({ id: m.id, from: m.from, text: m.text, at: m.at }));
+    me.lastRead[other] = new Date().toISOString();
+    saveDb();
+    return json(res, 200, {
+      friend: { key: other, name: db.users[other].name, avatar: db.users[other].avatar || null },
+      messages: msgs
+    });
+  }
+
+  if (mChat && req.method === 'POST') {
+    const other = mChat[1];
+    ensureSocial(me);
+    if (me.friends.indexOf(other) < 0 || !db.users[other]) return json(res, 403, { error: 'Ihr seid nicht befreundet.' });
+    const text = String(body.text || '').trim().slice(0, 1000);
+    if (!text) return json(res, 400, { error: 'Leere Nachricht.' });
+    db.messages.push({ id: newId('m'), from: key, to: other, text: text, at: new Date().toISOString() });
+    stat(null, 0, key);
+    saveDb();
+    return json(res, 200, { ok: true });
   }
 
   if (pathname === '/api/posts' && req.method === 'POST') {

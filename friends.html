@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PoolSite — Freunde</title>
+<meta name="description" content="Finde Freunde auf PoolSite und starte Chats.">
+<link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <a class="logo" href="index.html"><span class="logo-mark">P</span> PoolSite</a>
+    <a class="back" href="index.html">← Zurück zur Website</a>
+  </div>
+</header>
+<div class="beta-banner" id="mode-banner">Verbinde…</div>
+<nav id="app-nav" class="appnav" style="display:none"></nav>
+
+<main>
+  <div class="wrap">
+    <div class="feed-col">
+      <h1 class="page-title">👥 Freunde</h1>
+      <p class="page-sub">Finde Nutzer, sende Anfragen — und chatte mit deinen Freunden.</p>
+
+      <div id="local-note" class="chart-card" style="display:none">
+        <h3>Nur im Live-Modus verfügbar</h3>
+        <div class="hint" style="margin-bottom:0">Freunde &amp; Chat laufen über den PoolSite-Server. Öffne die App über die Server-URL.</div>
+      </div>
+
+      <div id="content" style="display:none">
+
+        <div class="chart-card">
+          <h3>Nutzer finden</h3>
+          <div class="comment-form" style="margin-top:12px">
+            <input type="text" id="search-q" maxlength="30" placeholder="Nutzername suchen (min. 2 Zeichen)…"
+              onkeydown="if(event.key==='Enter')doSearch()">
+            <button onclick="doSearch()">Suchen</button>
+          </div>
+          <div id="search-results"></div>
+          <div class="msg" id="msg-search"></div>
+        </div>
+
+        <div class="chart-card" id="requests-card" style="display:none">
+          <h3>Anfragen an dich</h3>
+          <div id="requests-in"></div>
+        </div>
+
+        <div class="chart-card">
+          <h3>Deine Freunde</h3>
+          <div id="friends-list"><div class="feed-empty">Lade…</div></div>
+        </div>
+
+        <div class="chart-card" id="out-card" style="display:none">
+          <h3>Gesendete Anfragen</h3>
+          <div id="requests-out"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="assets/app-core.js"></script>
+<script>
+function setMsg(text, type) {
+  var el = document.getElementById('msg-search');
+  el.className = 'msg' + (text ? ' ' + type : '');
+  el.textContent = text || '';
+}
+
+function row(u, actionsHtml, sub) {
+  return '<div class="friend-row">' +
+    '<div class="avatar-sm">' + PS.avatarHtml(u) + '</div>' +
+    '<div class="who"><div class="name">' + PS.escapeHtml(u.name) + (u.unread ? '<span class="unread-badge">' + u.unread + '</span>' : '') + '</div>' +
+    (sub ? '<div class="sub2">' + sub + '</div>' : '') + '</div>' +
+    '<div class="actions">' + actionsHtml + '</div></div>';
+}
+
+function doSearch() {
+  var q = document.getElementById('search-q').value.trim();
+  if (q.length < 2) { setMsg('Bitte mindestens 2 Zeichen eingeben.', 'error'); return; }
+  PS.searchUsers(q).then(function (users) {
+    setMsg('', '');
+    var host = document.getElementById('search-results');
+    if (!users.length) { host.innerHTML = '<div class="feed-empty">Keine Nutzer gefunden.</div>'; return; }
+    host.innerHTML = users.map(function (u) {
+      var act;
+      if (u.relation === 'friend') act = '<a class="pill-btn primary" href="chat.html?u=' + u.key + '">💬 Chat</a>';
+      else if (u.relation === 'out') act = '<span class="pill-btn" style="opacity:.6">Angefragt ✓</span>';
+      else if (u.relation === 'in') act = '<button class="pill-btn primary" onclick="accept(\'' + u.key + '\')">Annehmen</button>';
+      else act = '<button class="pill-btn primary" onclick="request(\'' + u.key + '\')">＋ Anfragen</button>';
+      return row(u, act, u.guest ? 'Gast-Konto' : null);
+    }).join('');
+  }).catch(function (e) { setMsg(e.message, 'error'); });
+}
+
+function request(k) {
+  PS.requestFriend(k).then(function (d) {
+    setMsg(d.becameFriends ? 'Ihr seid jetzt befreundet! 🎉' : 'Anfrage gesendet. ✓', 'ok');
+    doSearch();
+    refresh();
+  }).catch(function (e) { setMsg(e.message, 'error'); });
+}
+
+function accept(k) { PS.acceptFriend(k).then(function () { refresh(); if (document.getElementById('search-q').value.trim().length >= 2) doSearch(); }).catch(function (e) { setMsg(e.message, 'error'); }); }
+function decline(k) { PS.declineFriend(k).then(refresh).catch(function (e) { setMsg(e.message, 'error'); }); }
+function remove(k) {
+  if (!confirm('Freundschaft wirklich beenden?')) return;
+  PS.unfriend(k).then(refresh).catch(function (e) { setMsg(e.message, 'error'); });
+}
+
+function refresh() {
+  return PS.friends().then(function (d) {
+    if (d.local) {
+      document.getElementById('local-note').style.display = '';
+      document.getElementById('content').style.display = 'none';
+      return;
+    }
+    document.getElementById('local-note').style.display = 'none';
+    document.getElementById('content').style.display = '';
+
+    var reqCard = document.getElementById('requests-card');
+    reqCard.style.display = d.requestsIn.length ? '' : 'none';
+    document.getElementById('requests-in').innerHTML = d.requestsIn.map(function (u) {
+      return row(u,
+        '<button class="pill-btn primary" onclick="accept(\'' + u.key + '\')">Annehmen</button>' +
+        '<button class="pill-btn danger" onclick="decline(\'' + u.key + '\')">Ablehnen</button>');
+    }).join('');
+
+    var fl = document.getElementById('friends-list');
+    fl.innerHTML = d.friends.length
+      ? d.friends.map(function (u) {
+          return row(u,
+            '<a class="pill-btn primary" href="chat.html?u=' + u.key + '">💬 Chat</a>' +
+            '<button class="pill-btn danger" onclick="remove(\'' + u.key + '\')">✕</button>');
+        }).join('')
+      : '<div class="feed-empty">Noch keine Freunde — such oben nach Nutzern und sende eine Anfrage!</div>';
+
+    var outCard = document.getElementById('out-card');
+    outCard.style.display = d.requestsOut.length ? '' : 'none';
+    document.getElementById('requests-out').innerHTML = d.requestsOut.map(function (u) {
+      return row(u, '<span class="pill-btn" style="opacity:.6">Wartet…</span>');
+    }).join('');
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  PS.init().then(function () {
+    if (!PS.me()) { location.href = 'app.html'; return; }
+    PS.modeBanner();
+    PS.renderNav('friends');
+    refresh();
+    if (PS.getMode() === 'server') setInterval(refresh, 10000);
+  });
+});
+</script>
+
+</body>
+</html>

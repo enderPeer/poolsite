@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PoolSite — Chat</title>
+<meta name="description" content="PoolSite Chat — schreibe mit deinen Freunden.">
+<link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <a class="logo" href="index.html"><span class="logo-mark">P</span> PoolSite</a>
+    <a class="back" href="friends.html">← Zurück zu Freunden</a>
+  </div>
+</header>
+<div class="beta-banner" id="mode-banner">Verbinde…</div>
+<nav id="app-nav" class="appnav" style="display:none"></nav>
+
+<main>
+  <div class="wrap">
+    <div class="chat-wrap">
+      <div class="chat-head">
+        <div class="avatar-sm" id="ch-avatar"><span>?</span></div>
+        <div class="name" id="ch-name">—</div>
+      </div>
+      <div class="chat-box" id="chat-box">
+        <div class="chat-empty">Lade Chat…</div>
+      </div>
+      <div class="chat-input">
+        <input type="text" id="msg-text" maxlength="1000" placeholder="Nachricht schreiben…"
+          onkeydown="if(event.key==='Enter')send()">
+        <button class="btn small" onclick="send()">Senden</button>
+      </div>
+      <div class="msg" id="msg-err"></div>
+    </div>
+  </div>
+</main>
+
+<script src="assets/app-core.js"></script>
+<script>
+var friendKey = new URLSearchParams(location.search).get('u');
+var lastCount = -1;
+
+function setErr(text) {
+  var el = document.getElementById('msg-err');
+  el.className = 'msg' + (text ? ' error' : '');
+  el.textContent = text || '';
+}
+
+function render(d) {
+  document.getElementById('ch-avatar').innerHTML = PS.avatarHtml(d.friend);
+  document.getElementById('ch-name').textContent = d.friend.name;
+  document.title = 'PoolSite — Chat mit ' + d.friend.name;
+
+  var box = document.getElementById('chat-box');
+  if (!d.messages.length) {
+    box.innerHTML = '<div class="chat-empty">Noch keine Nachrichten — schreib die erste! 👋</div>';
+    lastCount = 0;
+    return;
+  }
+  if (d.messages.length === lastCount) return; // nichts Neues -> kein Scroll-Reset
+  lastCount = d.messages.length;
+  var meKey = PS.me().key;
+  box.innerHTML = d.messages.map(function (m) {
+    var mine = m.from === meKey;
+    var time = new Date(m.at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    return '<div class="bubble ' + (mine ? 'mine' : 'theirs') + '">' + PS.escapeHtml(m.text) +
+      '<span class="t">' + time + '</span></div>';
+  }).join('');
+  box.scrollTop = box.scrollHeight;
+}
+
+function refresh() {
+  return PS.chat(friendKey).then(function (d) { setErr(''); render(d); })
+    .catch(function (e) { setErr(e.message); });
+}
+
+function send() {
+  var inp = document.getElementById('msg-text');
+  var text = inp.value.trim();
+  if (!text) return;
+  inp.value = '';
+  PS.sendMessage(friendKey, text).then(refresh).catch(function (e) { setErr(e.message); });
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  PS.init().then(function () {
+    if (!PS.me()) { location.href = 'app.html'; return; }
+    if (!friendKey) { location.href = 'friends.html'; return; }
+    PS.modeBanner();
+    PS.renderNav('friends');
+    refresh().then(function () { document.getElementById('msg-text').focus(); });
+    if (PS.getMode() === 'server') setInterval(refresh, 3000);
+  });
+});
+</script>
+
+</body>
+</html>
