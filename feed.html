@@ -324,12 +324,11 @@ function doReact(id, kind) {
 
 function toggleComments(id) {
   openComments[id] = !openComments[id];
-  PS.posts().then(renderPosts).then(function () {
-    if (openComments[id]) {
-      var inp = document.getElementById('c-input-' + id);
-      if (inp) inp.focus();
-    }
-  });
+  renderPosts(lastPosts); // aus dem Cache neu zeichnen, kein erneuter Abruf/Sortierwechsel
+  if (openComments[id]) {
+    var inp = document.getElementById('c-input-' + id);
+    if (inp) inp.focus();
+  }
 }
 
 function addComment(id) {
@@ -375,10 +374,28 @@ function commentHtml(post, meKey) {
   '</div>';
 }
 
+var lastPosts = [];
+var lastSig = null;
+
+function feedSignature(posts, meKey) {
+  return meKey + '|' + feedOpts.sort + feedOpts.type + feedOpts.range + (feedOpts.friends ? 'F' : '') + '|' +
+    Object.keys(openComments).filter(function (k) { return openComments[k]; }).sort().join(',') + '|' +
+    posts.map(function (p) {
+      return p.id + ':' + p.likes.length + ':' + p.dislikes.length + ':' + p.comments.length + ':' + (p.score || 0);
+    }).join(',');
+}
+
 function renderPosts(posts) {
   var host = document.getElementById('posts');
   var me = PS.me();
   var meKey = me ? me.key : null;
+  lastPosts = posts;
+
+  // Nur neu zeichnen, wenn sich wirklich etwas geändert hat — verhindert das
+  // periodische Neuladen/Flackern des ganzen Feeds durch das 10-Sekunden-Intervall
+  var sig = feedSignature(posts, meKey);
+  if (sig === lastSig) return;
+  lastSig = sig;
 
   if (!posts.length) {
     host.innerHTML = '<div class="feed-empty">Noch keine Beiträge. Sei die erste Stimme im Feed! 🚀</div>';
