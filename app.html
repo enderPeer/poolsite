@@ -307,6 +307,9 @@ function render() {
   document.getElementById('btn-delete').textContent = guest ? 'Gast-Daten löschen' : 'Konto löschen';
   document.getElementById('avatar').innerHTML = PS.avatarHtml(rec);
   renderInvites();
+
+  // Neuen Nutzern einmalig den Walkthrough zeigen
+  if (!PS.tourDone()) PS.startTour();
 }
 
 document.addEventListener('DOMContentLoaded', function () {

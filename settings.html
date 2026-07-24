@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PoolSite — Einstellungen</title>
+<meta name="description" content="PoolSite Einstellungen — Konto, Benachrichtigungen und Walkthrough.">
+<link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <a class="logo" href="index.html"><span class="logo-mark">P</span> PoolSite</a>
+    <a class="back" href="index.html">← Zurück zur Website</a>
+  </div>
+</header>
+<div class="beta-banner" id="mode-banner">Verbinde…</div>
+<nav id="app-nav" class="appnav" style="display:none"></nav>
+
+<main>
+  <div class="wrap">
+    <div class="feed-col">
+      <h1 class="page-title">Einstellungen</h1>
+      <p class="page-sub">Konto, Benachrichtigungen und Hilfe.</p>
+
+      <div class="chart-card">
+        <h3>Walkthrough</h3>
+        <div class="hint">Die geführte Tour erklärt in 7 Schritten, wie PoolSite funktioniert: Feed, Burn, Standing, Token-Verteilung, Wallet, Markt und Einladungen.</div>
+        <button class="btn small" style="margin-top:12px" onclick="PS.startTour()">Walkthrough starten</button>
+      </div>
+
+      <div class="chart-card">
+        <h3>E-Mail &amp; Benachrichtigungen</h3>
+        <form onsubmit="return saveEmail(event)">
+          <label for="set-email">E-Mail <span class="opt">(leer lassen zum Entfernen)</span></label>
+          <input type="email" id="set-email" placeholder="du@beispiel.de">
+          <label class="check-row" style="margin-top:12px">
+            <input type="checkbox" id="set-notify">
+            <span>Benachrichtigungen erhalten (nur mit hinterlegter E-Mail möglich)</span>
+          </label>
+          <div class="consent">
+            <strong>Hinweis:</strong> Mit Angabe einer E-Mail-Adresse stimmst du Benachrichtigungen durch PoolSite zu.
+            Der Versand startet erst mit dem offiziellen Launch.
+          </div>
+          <button class="btn small" style="margin-top:14px" type="submit">Speichern</button>
+          <div class="msg" id="msg-email"></div>
+        </form>
+      </div>
+
+      <div class="chart-card" id="pw-card">
+        <h3>Passwort ändern</h3>
+        <form onsubmit="return savePassword(event)">
+          <label for="set-pw-cur">Aktuelles Passwort</label>
+          <input type="password" id="set-pw-cur" autocomplete="current-password" required>
+          <label for="set-pw-new">Neues Passwort</label>
+          <input type="password" id="set-pw-new" autocomplete="new-password" required minlength="4">
+          <div class="hint">Mindestens 4 Zeichen.</div>
+          <button class="btn small" style="margin-top:14px" type="submit">Passwort ändern</button>
+          <div class="msg" id="msg-pw"></div>
+        </form>
+      </div>
+
+      <div class="chart-card">
+        <h3>Konto</h3>
+        <button class="btn secondary" style="margin-top:8px" onclick="doLogout()">Abmelden</button>
+        <button class="btn danger-ghost" style="margin-top:12px" onclick="doDelete()">Konto löschen</button>
+      </div>
+
+    </div>
+  </div>
+</main>
+
+<script src="assets/app-core.js"></script>
+<script>
+function setMsg(id, text, type) {
+  var el = document.getElementById(id);
+  el.className = 'msg' + (text ? ' ' + type : '');
+  el.textContent = text || '';
+}
+
+function fill() {
+  var rec = PS.me();
+  document.getElementById('set-email').value = rec.email || '';
+  document.getElementById('set-notify').checked = !!rec.notifyConsent;
+  document.getElementById('pw-card').style.display = rec.guest ? 'none' : '';
+}
+
+function saveEmail(ev) {
+  ev.preventDefault();
+  PS.updateSettings({
+    email: document.getElementById('set-email').value.trim(),
+    notify: document.getElementById('set-notify').checked
+  }).then(function () {
+    fill();
+    setMsg('msg-email', 'Gespeichert. ✓', 'ok');
+  }).catch(function (e) { setMsg('msg-email', e.message, 'error'); });
+  return false;
+}
+
+function savePassword(ev) {
+  ev.preventDefault();
+  PS.updateSettings({
+    currentPassword: document.getElementById('set-pw-cur').value,
+    newPassword: document.getElementById('set-pw-new').value
+  }).then(function () {
+    document.getElementById('set-pw-cur').value = '';
+    document.getElementById('set-pw-new').value = '';
+    setMsg('msg-pw', 'Passwort geändert. ✓', 'ok');
+  }).catch(function (e) { setMsg('msg-pw', e.message, 'error'); });
+  return false;
+}
+
+function doLogout() { PS.logout().then(function () { location.href = 'app.html'; }); }
+
+function doDelete() {
+  if (!confirm('Konto wirklich endgültig löschen?')) return;
+  PS.deleteAccount().then(function () { location.href = 'app.html'; });
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  PS.init().then(function () {
+    if (!PS.me()) { location.href = 'app.html'; return; }
+    PS.modeBanner();
+    PS.renderNav('settings');
+    fill();
+  });
+});
+</script>
+
+<style>
+  .check-row { display: flex; gap: 10px; align-items: flex-start; font-weight: 400; font-size: .9rem; cursor: pointer; }
+  .check-row input { width: auto; margin-top: 3px; accent-color: var(--aqua); }
+</style>
+
+</body>
+</html>

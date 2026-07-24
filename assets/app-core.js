@@ -294,6 +294,94 @@ var PS = (function () {
     return Promise.resolve({ local: true, totals: {}, daily: [] });
   }
 
+  /* Einstellungen */
+  function updateSettings(payload) {
+    if (mode === 'server') {
+      return call('/api/settings', 'POST', payload).then(function (d) { cachedMe = d.me; return d.me; });
+    }
+    var users = lUsers();
+    var rec = users[lSession()];
+    if (!rec) return Promise.reject(new Error('Nicht angemeldet.'));
+    var chain = Promise.resolve();
+    if (payload.email !== undefined) {
+      var em = String(payload.email || '').trim();
+      rec.email = em || null;
+      rec.notifyConsent = !!em;
+    }
+    if (payload.notify !== undefined) rec.notifyConsent = !!payload.notify && !!rec.email;
+    if (payload.newPassword) {
+      if (rec.guest) return Promise.reject(new Error('Gast-Konten haben kein Passwort — wandle dein Konto zuerst um.'));
+      if (String(payload.newPassword).length < 4) return Promise.reject(new Error('Das neue Passwort muss mindestens 4 Zeichen haben.'));
+      var k = lSession();
+      chain = hashStr(k + ':' + String(payload.currentPassword || '')).then(function (cur) {
+        if (rec.passHash !== cur) throw new Error('Das aktuelle Passwort ist falsch.');
+        return hashStr(k + ':' + String(payload.newPassword));
+      }).then(function (nh) { rec.passHash = nh; });
+    }
+    return chain.then(function () {
+      lSaveUsers(users);
+      cachedMe = lMe(); return cachedMe;
+    });
+  }
+
+  /* Walkthrough — geführte Tour für neue Nutzer */
+  var TOUR_KEY = 'poolsite_tour_done';
+  var TOUR_STEPS = [
+    { t: 'Willkommen bei PoolSite', b: 'PoolSite ist ein einladungsbasiertes soziales Netzwerk, das seinen Nutzern gehört: Jeden Tag werden 5.000 PST-Token an die Community verteilt. Diese kurze Tour zeigt dir, wie alles zusammenhängt.' },
+    { t: 'Der Feed — Aktionen kosten Einsatz', b: 'Posten (0,10 €), Kommentieren (0,05 €) und Reagieren (0,02 €) kosten kleine Beträge aus deinem EUR-Guthaben. Dein Startguthaben: 10 €. Jeder ausgegebene Cent ist unwiderruflich — das nennen wir Burn.' },
+    { t: 'Burn wird zu Standing', b: 'Dein Burn geteilt durch deine Aktionen ergibt deine Rate, daraus dein Standing. Liegt es über der Schwelle (Gate offen), zählen deine Reaktionen als Gewicht für andere — Qualität schlägt Masse, Spam bestraft sich selbst.' },
+    { t: 'Tägliche Token-Verteilung', b: 'Um 00:00 UTC werden 5.000 PST verteilt: Wer Engagement von Nutzern mit offenem Gate auf seinen Inhalten sammelt, bekommt seinen Anteil. Wurdest du eingeladen, gehen 10 % deiner Token an deine:n Einlader:in.' },
+    { t: 'Wallet & sBTC', b: 'Im Wallet siehst du Token, EUR-Credits, Burn, Standing und die heutige Live-Verteilung. Dazu gibt es sBTC (Demo-Bitcoin): täglich per Faucet abholen und gegen Credits verbrennen — kein echtes Geld.' },
+    { t: 'Der Markt', b: 'Handle deine PST direkt mit anderen: Verkaufsangebote in EUR-Credits oder sBTC, Kauf ganz oder teilweise, 4 % Plattformgebühr. Der letzte Handelspreis bestimmt die Marktkapitalisierung.' },
+    { t: 'Freunde & Einladungen', b: 'Sende Freundschaftsanfragen (auch direkt aus dem Feed) und chatte mit Freunden. Und: Kaufe Einladungslinks (2 €/Platz) — du erhältst dauerhaft 10 % der Token deiner Eingeladenen. Viel Spaß!' }
+  ];
+
+  function tourDone() { return localStorage.getItem(TOUR_KEY) === '1'; }
+
+  function startTour() {
+    var old = document.getElementById('ps-tour');
+    if (old) old.remove();
+    var idx = 0;
+    var wrap = document.createElement('div');
+    wrap.id = 'ps-tour';
+    wrap.innerHTML = '<div class="tour-backdrop"></div>' +
+      '<div class="tour-card" role="dialog" aria-modal="true">' +
+        '<div class="tour-step" id="tour-step">1 / ' + TOUR_STEPS.length + '</div>' +
+        '<h2 id="tour-title"></h2>' +
+        '<p id="tour-body"></p>' +
+        '<div class="tour-dots" id="tour-dots"></div>' +
+        '<div class="tour-nav">' +
+          '<button class="pill-btn" id="tour-skip">Überspringen</button>' +
+          '<span class="appnav-grow"></span>' +
+          '<button class="pill-btn" id="tour-prev">Zurück</button>' +
+          '<button class="pill-btn primary" id="tour-next">Weiter</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(wrap);
+
+    function close() {
+      localStorage.setItem(TOUR_KEY, '1');
+      wrap.remove();
+    }
+    function show() {
+      var s = TOUR_STEPS[idx];
+      document.getElementById('tour-step').textContent = (idx + 1) + ' / ' + TOUR_STEPS.length;
+      document.getElementById('tour-title').textContent = s.t;
+      document.getElementById('tour-body').textContent = s.b;
+      document.getElementById('tour-prev').style.visibility = idx === 0 ? 'hidden' : 'visible';
+      document.getElementById('tour-next').textContent = idx === TOUR_STEPS.length - 1 ? 'Los geht’s' : 'Weiter';
+      document.getElementById('tour-dots').innerHTML = TOUR_STEPS.map(function (_, i) {
+        return '<span class="' + (i === idx ? 'on' : '') + '"></span>';
+      }).join('');
+    }
+    document.getElementById('tour-skip').onclick = close;
+    document.getElementById('tour-prev').onclick = function () { if (idx > 0) { idx--; show(); } };
+    document.getElementById('tour-next').onclick = function () {
+      if (idx < TOUR_STEPS.length - 1) { idx++; show(); } else { close(); }
+    };
+    show();
+  }
+
   /* Einladungen — nur im Live-Modus */
   function invites() {
     if (mode !== 'server') return Promise.resolve({ local: true, invites: [], invitees: [], seatPrice: 2, referralPct: 10 });
@@ -446,7 +534,8 @@ var PS = (function () {
       { id: 'market', label: 'Markt', href: 'market.html' },
       { id: 'feed', label: 'Feed', href: 'feed.html' },
       { id: 'friends', label: 'Freunde', href: 'friends.html' },
-      { id: 'stats', label: 'Key Numbers', href: 'stats.html' }
+      { id: 'stats', label: 'Key Numbers', href: 'stats.html' },
+      { id: 'settings', label: 'Einstellungen', href: 'settings.html' }
     ];
     var credits = cachedMe ? cachedMe.credits : 0;
     host.innerHTML = '<div class="wrap appnav-inner">' + tabs.map(function (t) {
@@ -477,6 +566,7 @@ var PS = (function () {
     logout: logout, deleteAccount: deleteAccount, setAvatar: setAvatar,
     claimStart: claimStart, wallet: wallet, stats: stats,
     invites: invites, createInvite: createInvite,
+    updateSettings: updateSettings, startTour: startTour, tourDone: tourDone,
     market: market, createOffer: createOffer, cancelOffer: cancelOffer, buyOffer: buyOffer,
     btcFaucet: btcFaucet, btcBurn: btcBurn, fmtBtc: fmtBtc,
     friends: friends, searchUsers: searchUsers, requestFriend: requestFriend,

@@ -267,6 +267,22 @@ input:focus, textarea:focus { border-color: var(--aqua); }
 /* Burn-Anzeige */
 .burn-chip { color: var(--gold); font-weight: 600; }
 
+/* Walkthrough */
+.tour-backdrop { position: fixed; inset: 0; background: rgba(4,10,11,.72); z-index: 200; }
+.tour-card {
+  position: fixed; z-index: 201; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: min(440px, calc(100vw - 32px));
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 28px;
+}
+.tour-card .tour-step { font-family: var(--font-mono); font-size: .76rem; color: var(--aqua); letter-spacing: .1em; margin-bottom: 10px; }
+.tour-card h2 { font-size: 1.25rem; margin-bottom: 10px; }
+.tour-card p { color: var(--muted); font-size: .95rem; min-height: 96px; }
+.tour-dots { display: flex; gap: 6px; margin: 16px 0; }
+.tour-dots span { width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
+.tour-dots span.on { background: var(--aqua); }
+.tour-nav { display: flex; gap: 8px; align-items: center; }
+
 /* sBTC */
 .burn-form { display: flex; gap: 8px; align-items: center; }
 .burn-form input {

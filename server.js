@@ -428,6 +428,29 @@ function handleApi(req, res, pathname, body) {
     return json(res, 200, { me: mePayload(nk) });
   }
 
+  if (pathname === '/api/settings' && req.method === 'POST') {
+    if (body.email !== undefined) {
+      const em = String(body.email || '').trim();
+      if (em && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) return json(res, 400, { error: 'Ungültige E-Mail-Adresse.' });
+      me.email = em || null;
+      me.notifyConsent = !!em;
+    }
+    if (body.notify !== undefined) {
+      me.notifyConsent = !!body.notify && !!me.email;
+    }
+    if (body.newPassword) {
+      if (me.guest) return json(res, 400, { error: 'Gast-Konten haben kein Passwort — wandle dein Konto zuerst um.' });
+      const np = String(body.newPassword);
+      if (np.length < 4) return json(res, 400, { error: 'Das neue Passwort muss mindestens 4 Zeichen haben.' });
+      if (me.passHash !== sha(key + ':' + String(body.currentPassword || ''))) {
+        return json(res, 403, { error: 'Das aktuelle Passwort ist falsch.' });
+      }
+      me.passHash = sha(key + ':' + np);
+    }
+    saveDb();
+    return json(res, 200, { me: mePayload(key) });
+  }
+
   if (pathname === '/api/avatar' && req.method === 'POST') {
     const d = String(body.dataUrl || '');
     if (!/^data:image\/(jpeg|png|webp);base64,/.test(d) || d.length > 200000) {
