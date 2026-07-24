@@ -1125,6 +1125,13 @@ const server = http.createServer((req, res) => {
 distribute();                                // ausstehende Tage beim Start verarbeiten
 setInterval(distribute, 60 * 1000);          // und danach jede Minute prüfen (00:00 UTC)
 
+// Automatische Backups: einmal beim Start, danach taeglich
+try {
+  const backup = require('./backup');
+  backup.runBackup({ quiet: true });
+  setInterval(() => { try { backup.runBackup({ quiet: true }); } catch (e) { console.error('[backup]', e.message); } }, 24 * 3600 * 1000);
+} catch (e) { console.error('[backup] nicht verfuegbar:', e.message); }
+
 server.listen(PORT, '0.0.0.0', () => {
   console.log('PoolSite-Server läuft: http://localhost:' + PORT);
 });
