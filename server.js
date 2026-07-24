@@ -15,7 +15,8 @@ const PORT = process.env.PORT || 3000;
 const PRICES = { post: 0.10, comment: 0.05, like: 0.02, dislike: 0.02 };
 const START_CREDITS = 10.00;
 const USER_RE = /^[A-Za-z0-9][A-Za-z0-9._]{1,29}$/;
-const MAX_BODY = 300 * 1024; // 300 KB (Avatare als DataURL)
+const MAX_BODY = 1024 * 1024; // 1 MB (Avatare & komprimierte Beitragsbilder als DataURL)
+const MAX_IMAGE = 700 * 1024; // max. Bildgröße nach Client-Kompression
 
 /* ---------- Token-Verteilung (Konstanten) ---------- */
 const DAILY_TOKENS = 5000;          // Jahr-1-Emission pro Tag
@@ -91,7 +92,7 @@ function mePayload(key) {
 
 function postPayload(p) {
   return {
-    id: p.id, text: p.text, createdAt: p.createdAt,
+    id: p.id, text: p.text, image: p.image || null, createdAt: p.createdAt,
     author: publicUser(p.author), authorKey: p.author,
     likes: p.likes || [], dislikes: p.dislikes || [],
     comments: (p.comments || []).map(c => ({
@@ -509,10 +510,17 @@ function handleApi(req, res, pathname, body) {
 
   if (pathname === '/api/posts' && req.method === 'POST') {
     const text = String(body.text || '').trim().slice(0, 500);
-    if (!text) return json(res, 400, { error: 'Schreib erst etwas, bevor du postest.' });
+    let image = null;
+    if (body.image) {
+      const d = String(body.image);
+      if (!/^data:image\/(jpeg|png|webp);base64,/.test(d)) return json(res, 400, { error: 'Ungültiges Bildformat.' });
+      if (d.length > MAX_IMAGE) return json(res, 400, { error: 'Bild zu groß (max. ~500 KB nach Kompression).' });
+      image = d;
+    }
+    if (!text && !image) return json(res, 400, { error: 'Schreib etwas oder füge ein Bild hinzu.' });
     const pay = charge(me, 'post');
     if (!pay.ok) return json(res, 402, { error: pay.error });
-    db.posts.push({ id: newId('post'), author: key, text: text, createdAt: new Date().toISOString(), likes: [], dislikes: [], comments: [] });
+    db.posts.push({ id: newId('post'), author: key, text: text, image: image, createdAt: new Date().toISOString(), likes: [], dislikes: [], comments: [] });
     stat('posts', 1, key);
     stat('burn', PRICES.post);
     saveDb();

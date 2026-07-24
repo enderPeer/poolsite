@@ -108,7 +108,7 @@ var PS = (function () {
   }
   function lPostPayload(users, p) {
     return {
-      id: p.id, text: p.text, createdAt: p.createdAt,
+      id: p.id, text: p.text, image: p.image || null, createdAt: p.createdAt,
       author: lPublic(users, p.author), authorKey: p.author,
       likes: p.likes || [], dislikes: p.dislikes || [],
       comments: (p.comments || []).map(function (c) {
@@ -323,15 +323,15 @@ var PS = (function () {
     );
   }
 
-  function addPost(text) {
+  function addPost(text, image) {
     if (mode === 'server') {
-      return call('/api/posts', 'POST', { text: text }).then(function (d) { cachedMe = d.me; });
+      return call('/api/posts', 'POST', { text: text, image: image || null }).then(function (d) { cachedMe = d.me; });
     }
     var pay = lCharge('post');
     if (!pay.ok) return Promise.reject(new Error(pay.error));
     var ps = lPosts();
-    ps.push({ id: Date.now() + '_' + Math.random().toString(36).slice(2, 8), author: lSession(), text: text, createdAt: new Date().toISOString(), likes: [], dislikes: [], comments: [] });
-    lSavePosts(ps);
+    ps.push({ id: Date.now() + '_' + Math.random().toString(36).slice(2, 8), author: lSession(), text: text, image: image || null, createdAt: new Date().toISOString(), likes: [], dislikes: [], comments: [] });
+    try { lSavePosts(ps); } catch (e) { return Promise.reject(new Error('Lokaler Speicher voll — Bild zu groß für den Demo-Modus.')); }
     cachedMe = lMe(); return Promise.resolve();
   }
 

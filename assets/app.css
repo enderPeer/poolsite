@@ -255,6 +255,28 @@ input:focus, textarea:focus { border-color: var(--aqua); }
 /* Burn-Anzeige */
 .burn-chip { color: var(--gold); font-weight: 600; }
 
+/* Bilder im Feed */
+.post-img {
+  display: block; max-width: 100%; height: auto; max-height: 420px;
+  object-fit: cover; border-radius: 12px; margin-top: 12px;
+  border: 1px solid var(--line); cursor: zoom-in;
+}
+.post-img.expanded { max-height: none; object-fit: contain; cursor: zoom-out; }
+.img-preview { position: relative; margin-top: 10px; display: inline-block; }
+.img-preview img {
+  max-width: 220px; max-height: 160px; border-radius: 10px;
+  border: 1px solid var(--line); display: block;
+}
+.img-remove {
+  position: absolute; top: -8px; right: -8px;
+  width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--card);
+  background: var(--red); color: #fff; cursor: pointer; font-size: .8rem;
+  display: grid; place-items: center;
+}
+.img-size {
+  display: block; margin-top: 6px; font-size: .74rem; color: var(--aqua);
+}
+
 /* Freunde */
 .friend-row {
   display: flex; align-items: center; gap: 12px;

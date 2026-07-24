@@ -28,10 +28,19 @@
         <div class="avatar-sm" id="comp-avatar"><span>?</span></div>
         <div style="flex:1">
           <textarea id="post-text" maxlength="500" placeholder="Was gibt's Neues?" oninput="updateCount()"></textarea>
+          <div class="img-preview" id="img-preview" style="display:none">
+            <img id="img-preview-el" alt="Bildvorschau">
+            <button class="img-remove" title="Bild entfernen" onclick="removeImage()">✕</button>
+            <span class="img-size" id="img-size"></span>
+          </div>
           <div class="composer-foot">
             <span class="count"><span id="char-count">0</span>/500 · Posten kostet <span class="burn-chip" id="post-price">—</span></span>
-            <button class="btn small" onclick="createPost()">Posten</button>
+            <span style="display:flex; gap:8px">
+              <button class="pill-btn" title="Bild anhängen" onclick="document.getElementById('img-file').click()">📷 Bild</button>
+              <button class="btn small" onclick="createPost()">Posten</button>
+            </span>
           </div>
+          <input type="file" id="img-file" accept="image/*" style="display:none" onchange="pickImage(this)">
           <div class="msg" id="msg-post"></div>
         </div>
       </div>
@@ -97,12 +106,64 @@ function refresh() {
   });
 }
 
+/* Bild auf dem Gerät verkleinern & komprimieren, bevor irgendetwas hochgeladen wird */
+var pendingImage = null;
+
+function compressImage(file, cb) {
+  var reader = new FileReader();
+  reader.onload = function (e) {
+    var img = new Image();
+    img.onload = function () {
+      var MAX_EDGE = 1280;
+      var scale = Math.min(1, MAX_EDGE / Math.max(img.width, img.height));
+      var canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      // Qualität schrittweise senken, bis das Bild klein genug ist
+      var quality = 0.8;
+      var dataUrl = canvas.toDataURL('image/jpeg', quality);
+      while (dataUrl.length > 500 * 1024 && quality > 0.35) {
+        quality -= 0.15;
+        dataUrl = canvas.toDataURL('image/jpeg', quality);
+      }
+      cb(dataUrl, file.size, dataUrl.length);
+    };
+    img.onerror = function () { setMsg('Bild konnte nicht gelesen werden.', 'error'); };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function pickImage(input) {
+  var file = input.files && input.files[0];
+  input.value = '';
+  if (!file) return;
+  if (!/^image\//.test(file.type)) { setMsg('Bitte wähle eine Bilddatei aus.', 'error'); return; }
+  compressImage(file, function (dataUrl, origBytes, newBytes) {
+    pendingImage = dataUrl;
+    document.getElementById('img-preview').style.display = '';
+    document.getElementById('img-preview-el').src = dataUrl;
+    var saved = Math.max(0, Math.round((1 - newBytes / Math.max(origBytes, 1)) * 100));
+    document.getElementById('img-size').textContent =
+      Math.round(origBytes / 1024) + ' KB → ' + Math.round(newBytes / 1024) + ' KB (' + saved + ' % gespart)';
+    setMsg('', '');
+  });
+}
+
+function removeImage() {
+  pendingImage = null;
+  document.getElementById('img-preview').style.display = 'none';
+  document.getElementById('img-preview-el').src = '';
+}
+
 function createPost() {
   var ta = document.getElementById('post-text');
   var text = ta.value.trim();
-  if (!text) { setMsg('Schreib erst etwas, bevor du postest.', 'error'); return; }
-  PS.addPost(text).then(function () {
+  if (!text && !pendingImage) { setMsg('Schreib etwas oder füge ein Bild hinzu.', 'error'); return; }
+  PS.addPost(text, pendingImage).then(function () {
     ta.value = '';
+    removeImage();
     updateCount();
     setMsg('Beitrag veröffentlicht — ' + PS.fmtEur(PS.PRICES.post) + ' Burn → Commitment B. ✓', 'ok');
     return refresh();
@@ -189,7 +250,8 @@ function renderPosts(posts) {
         '</div>' +
         friendButton(p.authorKey) +
       '</div>' +
-      '<div class="post-text">' + PS.escapeHtml(p.text) + '</div>' +
+      (p.text ? '<div class="post-text">' + PS.escapeHtml(p.text) + '</div>' : '') +
+      (p.image ? '<img class="post-img" src="' + p.image + '" alt="Beitragsbild" loading="lazy" onclick="this.classList.toggle(\'expanded\')">' : '') +
       '<div class="post-actions">' +
         '<button class="' + (liked ? 'liked' : '') + '" title="Like (' + PS.fmtEur(PS.PRICES.like) + ')" onclick="doReact(\'' + p.id + '\',\'likes\')">' +
           (liked ? '♥' : '♡') + ' ' + (p.likes.length || '') + '</button>' +
