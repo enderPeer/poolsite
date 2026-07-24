@@ -33,6 +33,8 @@ function loadDb() {
   db.stats = db.stats || {};
   db.friendRequests = db.friendRequests || [];
   db.messages = db.messages || [];
+  db.offers = db.offers || [];
+  db.trades = db.trades || [];
   if (!db.meta) db.meta = { lastDay: dayStr(Date.now() - 86400000), carryover: 0, totalDistributed: 0 };
 }
 
@@ -297,6 +299,7 @@ function handleApi(req, res, pathname, body) {
     for (const t of Object.keys(db.sessions)) if (db.sessions[t] === key) delete db.sessions[t];
     db.friendRequests = db.friendRequests.filter(r => r.from !== key && r.to !== key);
     db.messages = db.messages.filter(m => m.from !== key && m.to !== key);
+    db.offers = db.offers.filter(o => o.seller !== key);
     for (const k of Object.keys(db.users)) {
       const u = db.users[k];
       if (u.friends) u.friends = u.friends.filter(f => f !== key);
@@ -329,6 +332,8 @@ function handleApi(req, res, pathname, body) {
     for (const t of Object.keys(db.sessions)) if (db.sessions[t] === key) db.sessions[t] = nk;
     db.friendRequests.forEach(r => { if (r.from === key) r.from = nk; if (r.to === key) r.to = nk; });
     db.messages.forEach(m => { if (m.from === key) m.from = nk; if (m.to === key) m.to = nk; });
+    db.offers.forEach(o => { if (o.seller === key) o.seller = nk; });
+    db.trades.forEach(t => { if (t.buyer === key) t.buyer = nk; if (t.seller === key) t.seller = nk; });
     for (const k of Object.keys(db.users)) {
       const u = db.users[k];
       if (u.friends) u.friends = u.friends.map(f => f === key ? nk : f);
@@ -369,6 +374,7 @@ function handleApi(req, res, pathname, body) {
     const yEntry = (me.tokenHistory || []).filter(h => h.day === yesterday);
     const nextMidnight = new Date();
     nextMidnight.setUTCHours(24, 0, 0, 0);
+    const lastPrice = db.trades.length ? db.trades[db.trades.length - 1].pricePerToken : null;
     return json(res, 200, {
       me: mePayload(key),
       wallet: {
@@ -381,9 +387,81 @@ function handleApi(req, res, pathname, body) {
         poolToday: pool,
         carryover: db.meta.carryover,
         totalDistributed: db.meta.totalDistributed,
-        nextDistribution: nextMidnight.toISOString()
+        nextDistribution: nextMidnight.toISOString(),
+        lastPrice: lastPrice,
+        marketCap: lastPrice ? round2(db.meta.totalDistributed * lastPrice) : null
       }
     });
+  }
+
+  /* ---------- Markt: Token-Handel zwischen Nutzern ---------- */
+  const TRADE_FEE = 0.04; // 4 % Plattformgebühr (2 % Treasury + 1 % Pool + 1 % Referral)
+
+  if (pathname === '/api/market' && req.method === 'GET') {
+    const offers = db.offers.slice()
+      .sort((a, b) => a.pricePerToken - b.pricePerToken)
+      .map(o => ({
+        id: o.id, amount: o.amount, pricePerToken: o.pricePerToken,
+        total: round2(o.amount * o.pricePerToken),
+        seller: publicUser(o.seller), mine: o.seller === key, createdAt: o.createdAt
+      }));
+    const trades = db.trades.slice(-30).reverse().map(t => ({
+      amount: t.amount, pricePerToken: t.pricePerToken, total: t.total, at: t.at,
+      buyer: publicUser(t.buyer).name, seller: publicUser(t.seller).name
+    }));
+    const lastPrice = db.trades.length ? db.trades[db.trades.length - 1].pricePerToken : null;
+    return json(res, 200, { offers: offers, trades: trades, lastPrice: lastPrice, feePct: TRADE_FEE * 100, me: mePayload(key) });
+  }
+
+  if (pathname === '/api/market/offers' && req.method === 'POST') {
+    const amount = Math.round((+body.amount || 0) * 100) / 100;
+    const price = Math.round((+body.pricePerToken || 0) * 10000) / 10000;
+    if (!(amount >= 1)) return json(res, 400, { error: 'Mindestmenge: 1 PST.' });
+    if (!(price >= 0.0001 && price <= 1000)) return json(res, 400, { error: 'Preis pro Token: 0,0001 € bis 1.000 €.' });
+    if ((me.tokens || 0) + 1e-9 < amount) return json(res, 400, { error: 'Nicht genug Token — du hast ' + (me.tokens || 0) + ' PST.' });
+    me.tokens = round2(me.tokens - amount); // Treuhand: Token sind ab jetzt im Angebot gebunden
+    db.offers.push({ id: newId('off'), seller: key, amount: amount, pricePerToken: price, createdAt: new Date().toISOString() });
+    saveDb();
+    return json(res, 200, { me: mePayload(key) });
+  }
+
+  const mOffer = pathname.match(/^\/api\/market\/offers\/([\w]+)$/);
+  if (mOffer && req.method === 'DELETE') {
+    const idx = db.offers.findIndex(o => o.id === mOffer[1] && o.seller === key);
+    if (idx < 0) return json(res, 404, { error: 'Angebot nicht gefunden.' });
+    me.tokens = round2((me.tokens || 0) + db.offers[idx].amount); // Treuhand zurück
+    db.offers.splice(idx, 1);
+    saveDb();
+    return json(res, 200, { me: mePayload(key) });
+  }
+
+  const mBuy = pathname.match(/^\/api\/market\/offers\/([\w]+)\/buy$/);
+  if (mBuy && req.method === 'POST') {
+    const offer = db.offers.find(o => o.id === mBuy[1]);
+    if (!offer) return json(res, 404, { error: 'Angebot nicht mehr verfügbar.' });
+    if (offer.seller === key) return json(res, 400, { error: 'Du kannst dein eigenes Angebot nicht kaufen.' });
+    const amt = body.amount ? Math.round((+body.amount) * 100) / 100 : offer.amount;
+    if (!(amt > 0) || amt - offer.amount > 1e-9) return json(res, 400, { error: 'Ungültige Menge (verfügbar: ' + offer.amount + ' PST).' });
+    const total = round2(amt * offer.pricePerToken);
+    if (total < 0.01) return json(res, 400, { error: 'Kaufbetrag zu klein (min. 0,01 €).' });
+    if (me.credits + 1e-9 < total) return json(res, 402, { error: 'Nicht genug Guthaben — Kauf kostet ' + total.toFixed(2).replace('.', ',') + ' €.' });
+
+    const fee = round2(total * TRADE_FEE);
+    const proceeds = round2(total - fee);
+    me.credits = round2(me.credits - total);
+    me.tokens = round2((me.tokens || 0) + amt);
+    const seller = db.users[offer.seller];
+    if (seller) {
+      seller.credits = round2(seller.credits + proceeds);
+      seller.burn = round2(seller.burn + fee); // Gebühr ist unwiderruflich weg -> zählt ins Commitment B
+    }
+    offer.amount = round2(offer.amount - amt);
+    if (offer.amount < 0.01) db.offers = db.offers.filter(o => o.id !== offer.id);
+    db.trades.push({ id: newId('tr'), buyer: key, seller: offer.seller, amount: amt, pricePerToken: offer.pricePerToken, total: total, at: new Date().toISOString() });
+    if (db.trades.length > 500) db.trades = db.trades.slice(-500);
+    stat(null, 0, key);
+    saveDb();
+    return json(res, 200, { me: mePayload(key) });
   }
 
   /* ---------- Freunde & Chat ---------- */

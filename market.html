@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PoolSite — Markt</title>
+<meta name="description" content="PoolSite Markt — handle PST-Token direkt mit anderen Nutzern.">
+<link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <a class="logo" href="index.html"><span class="logo-mark">P</span> PoolSite</a>
+    <a class="back" href="index.html">← Zurück zur Website</a>
+  </div>
+</header>
+<div class="beta-banner" id="mode-banner">Verbinde…</div>
+<nav id="app-nav" class="appnav" style="display:none"></nav>
+
+<main>
+  <div class="wrap">
+    <div class="feed-col">
+      <h1 class="page-title">Markt</h1>
+      <p class="page-sub">Handle PST-Token direkt mit anderen Nutzern — bezahlt wird mit EUR-Credits. Pro Verkauf fällt die Plattformgebühr von <span id="fee-pct">4</span> % an (zählt beim Verkäufer als Burn).</p>
+
+      <div id="local-note" class="chart-card" style="display:none">
+        <h3>Nur im Live-Modus verfügbar</h3>
+        <div class="hint" style="margin-bottom:0">Der Markt läuft über den PoolSite-Server. Öffne die App über die Server-URL.</div>
+      </div>
+
+      <div id="content" style="display:none">
+
+        <div class="stats">
+          <div class="stat"><div class="v aqua" id="m-price">—</div><div class="l">Letzter Preis pro Token</div></div>
+          <div class="stat"><div class="v" id="m-tokens">—</div><div class="l">Deine Token (frei)</div></div>
+          <div class="stat"><div class="v" id="m-credits">—</div><div class="l">Deine EUR-Credits</div></div>
+          <div class="stat"><div class="v" id="m-offers">—</div><div class="l">Offene Angebote</div></div>
+        </div>
+
+        <div class="chart-card">
+          <h3>Token verkaufen</h3>
+          <div class="hint">Deine Token wandern bis zum Verkauf oder Rückzug in ein Treuhand-Depot.</div>
+          <div class="market-form">
+            <label>Menge (PST)
+              <input type="number" id="of-amount" min="1" step="1" placeholder="z. B. 100" oninput="updateTotal()">
+            </label>
+            <label>Preis pro Token (€)
+              <input type="number" id="of-price" min="0.0001" step="0.001" placeholder="z. B. 0,05" oninput="updateTotal()">
+            </label>
+            <div class="of-total">Erlös: <b id="of-total">—</b> <span class="hint-inline" id="of-net"></span></div>
+            <button class="btn small" onclick="createOffer()">Angebot einstellen</button>
+          </div>
+          <div class="msg" id="msg-offer"></div>
+        </div>
+
+        <div class="chart-card">
+          <h3>Offene Angebote</h3>
+          <div id="offers"><div class="feed-empty">Lade…</div></div>
+          <div class="msg" id="msg-buy"></div>
+        </div>
+
+        <div class="chart-card">
+          <h3>Letzte Trades</h3>
+          <div id="trades"><div class="feed-empty">Noch keine Trades.</div></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="assets/app-core.js"></script>
+<script>
+function fmt(n, dec) {
+  return n.toLocaleString('de-DE', { minimumFractionDigits: dec || 0, maximumFractionDigits: dec || 0 });
+}
+function fmtPrice(p) { return p.toFixed(4).replace(/0+$/, '').replace(/[.,]$/, '').replace('.', ',') + ' €'; }
+
+function setMsg(id, text, type) {
+  var el = document.getElementById(id);
+  el.className = 'msg' + (text ? ' ' + type : '');
+  el.textContent = text || '';
+}
+
+var feePct = 4;
+
+function updateTotal() {
+  var a = +document.getElementById('of-amount').value || 0;
+  var p = +document.getElementById('of-price').value || 0;
+  var total = a * p;
+  document.getElementById('of-total').textContent = total > 0 ? PS.fmtEur(total) : '—';
+  document.getElementById('of-net').textContent = total > 0
+    ? 'davon ' + PS.fmtEur(total * (1 - feePct / 100)) + ' für dich nach ' + feePct + ' % Gebühr'
+    : '';
+}
+
+function createOffer() {
+  var a = +document.getElementById('of-amount').value || 0;
+  var p = +document.getElementById('of-price').value || 0;
+  PS.createOffer(a, p).then(function () {
+    document.getElementById('of-amount').value = '';
+    document.getElementById('of-price').value = '';
+    updateTotal();
+    setMsg('msg-offer', 'Angebot eingestellt — deine Token liegen im Treuhand-Depot. ✓', 'ok');
+    return refresh();
+  }).catch(function (e) { setMsg('msg-offer', e.message, 'error'); });
+}
+
+function cancelOffer(id) {
+  PS.cancelOffer(id).then(function () {
+    setMsg('msg-offer', 'Angebot zurückgezogen — Token sind wieder frei. ✓', 'ok');
+    return refresh();
+  }).catch(function (e) { setMsg('msg-offer', e.message, 'error'); });
+}
+
+function buyOffer(id) {
+  var inp = document.getElementById('buy-' + id);
+  var amt = +inp.value || 0;
+  PS.buyOffer(id, amt).then(function () {
+    setMsg('msg-buy', 'Gekauft: ' + fmt(amt, 0) + ' PST. ✓', 'ok');
+    return refresh();
+  }).catch(function (e) { setMsg('msg-buy', e.message, 'error'); });
+}
+
+function render(d) {
+  if (d.local) {
+    document.getElementById('local-note').style.display = '';
+    document.getElementById('content').style.display = 'none';
+    return;
+  }
+  document.getElementById('local-note').style.display = 'none';
+  document.getElementById('content').style.display = '';
+  feePct = d.feePct || 4;
+  document.getElementById('fee-pct').textContent = fmt(feePct);
+
+  var me = PS.me();
+  document.getElementById('m-price').textContent = d.lastPrice ? fmtPrice(d.lastPrice) : '—';
+  document.getElementById('m-tokens').textContent = fmt(me.tokens, 2) + ' PST';
+  document.getElementById('m-credits').textContent = PS.fmtEur(me.credits);
+  document.getElementById('m-offers').textContent = fmt(d.offers.length);
+
+  var host = document.getElementById('offers');
+  if (!d.offers.length) {
+    host.innerHTML = '<div class="feed-empty">Keine offenen Angebote — stelle das erste ein!</div>';
+  } else {
+    host.innerHTML = d.offers.map(function (o) {
+      var right = o.mine
+        ? '<button class="pill-btn danger" onclick="cancelOffer(\'' + o.id + '\')">Zurückziehen</button>'
+        : '<span class="buy-group"><input type="number" id="buy-' + o.id + '" value="' + o.amount + '" min="1" max="' + o.amount + '" step="1">' +
+          '<button class="pill-btn primary" onclick="buyOffer(\'' + o.id + '\')">Kaufen</button></span>';
+      return '<div class="friend-row">' +
+        '<div class="avatar-sm">' + PS.avatarHtml(o.seller) + '</div>' +
+        '<div class="who">' +
+          '<div class="name">' + fmt(o.amount, 0) + ' PST · ' + fmtPrice(o.pricePerToken) + '/PST' + (o.mine ? ' <span class="sub2">(dein Angebot)</span>' : '') + '</div>' +
+          '<div class="sub2">' + PS.escapeHtml(o.seller.name) + ' · gesamt ' + PS.fmtEur(o.total) + ' · ' + PS.timeAgo(o.createdAt) + '</div>' +
+        '</div>' +
+        '<div class="actions">' + right + '</div></div>';
+    }).join('');
+  }
+
+  var th = document.getElementById('trades');
+  if (d.trades.length) {
+    th.innerHTML = d.trades.map(function (t) {
+      return '<div class="friend-row">' +
+        '<div class="who">' +
+          '<div class="name">' + fmt(t.amount, 0) + ' PST zu ' + fmtPrice(t.pricePerToken) + '/PST</div>' +
+          '<div class="sub2">' + PS.escapeHtml(t.buyer) + ' ← ' + PS.escapeHtml(t.seller) + ' · ' + PS.fmtEur(t.total) + ' · ' + PS.timeAgo(t.at) + '</div>' +
+        '</div></div>';
+    }).join('');
+  }
+}
+
+function refresh() {
+  return PS.market().then(function (d) {
+    render(d);
+    PS.renderNav('market');
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  PS.init().then(function () {
+    if (!PS.me()) { location.href = 'app.html'; return; }
+    PS.modeBanner();
+    PS.renderNav('market');
+    refresh();
+    if (PS.getMode() === 'server') setInterval(refresh, 12000);
+  });
+});
+</script>
+
+<style>
+  .market-form { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; align-items: end; }
+  .market-form label { font-size: .85rem; }
+  .market-form input { margin-top: 6px; }
+  .market-form .of-total { grid-column: 1 / -1; font-size: .92rem; color: var(--muted); }
+  .market-form .of-total b { color: var(--aqua); font-family: var(--font-mono); }
+  .market-form .hint-inline { font-size: .78rem; }
+  .market-form .btn { grid-column: 1 / -1; justify-self: start; }
+  .buy-group { display: flex; gap: 8px; align-items: center; }
+  .buy-group input { width: 90px; padding: 8px 10px; font-size: .9rem; }
+  input[type=number] {
+    width: 100%; padding: 12px 14px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--bg-soft); color: var(--text);
+    font-size: 1rem; font-family: var(--font-mono); outline: none;
+  }
+  input[type=number]:focus { border-color: var(--aqua); }
+  @media (max-width: 640px) {
+    .market-form { grid-template-columns: 1fr; }
+    .buy-group input { width: 74px; }
+  }
+</style>
+
+</body>
+</html>

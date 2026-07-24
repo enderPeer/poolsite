@@ -106,11 +106,11 @@
       </div>
       <div class="stat">
         <div class="v" id="s-price">—</div>
-        <div class="l">Preis pro Token (noch kein Handel)</div>
+        <div class="l" id="s-price-l">Preis pro Token (letzter Handel)</div>
       </div>
       <div class="stat">
         <div class="v" id="s-mcap">—</div>
-        <div class="l">Marktkapitalisierung (erst mit Handel)</div>
+        <div class="l">Marktkapitalisierung (Umlauf × Preis)</div>
       </div>
     </div>
   </div>
@@ -234,6 +234,14 @@ function renderWallet(w) {
   drawEarnChart(w.history || []);
   document.getElementById('s-circ').textContent = fmt(w.totalDistributed, 0) + ' PST';
   document.getElementById('s-carry').textContent = fmt(w.carryover, 0) + ' PST';
+  if (w.lastPrice) {
+    document.getElementById('s-price').textContent = w.lastPrice.toFixed(4).replace('.', ',') + ' €';
+    document.getElementById('s-mcap').textContent = PS.fmtEur(w.marketCap);
+  } else {
+    document.getElementById('s-price').textContent = '—';
+    document.getElementById('s-price-l').textContent = 'Preis pro Token (noch kein Handel)';
+    document.getElementById('s-mcap').textContent = '—';
+  }
 
   if (w.local) {
     document.getElementById('d-myweight').textContent = '—';

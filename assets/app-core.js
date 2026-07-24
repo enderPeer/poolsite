@@ -294,6 +294,24 @@ var PS = (function () {
     return Promise.resolve({ local: true, totals: {}, daily: [] });
   }
 
+  /* Markt: Token-Handel zwischen Nutzern — nur im Live-Modus */
+  function market() {
+    if (mode !== 'server') return Promise.resolve({ local: true, offers: [], trades: [], lastPrice: null });
+    return call('/api/market').then(function (d) { cachedMe = d.me; return d; });
+  }
+  function createOffer(amount, pricePerToken) {
+    if (mode !== 'server') return Promise.reject(new Error('Der Markt ist nur im Live-Modus verfügbar.'));
+    return call('/api/market/offers', 'POST', { amount: amount, pricePerToken: pricePerToken }).then(function (d) { cachedMe = d.me; });
+  }
+  function cancelOffer(id) {
+    if (mode !== 'server') return Promise.reject(new Error('Der Markt ist nur im Live-Modus verfügbar.'));
+    return call('/api/market/offers/' + id, 'DELETE').then(function (d) { cachedMe = d.me; });
+  }
+  function buyOffer(id, amount) {
+    if (mode !== 'server') return Promise.reject(new Error('Der Markt ist nur im Live-Modus verfügbar.'));
+    return call('/api/market/offers/' + id + '/buy', 'POST', { amount: amount }).then(function (d) { cachedMe = d.me; });
+  }
+
   /* Freunde & Chat — nur im Live-Modus */
   var LOCAL_ONLY = 'Freunde & Chat sind nur im Live-Modus (mit Server) verfügbar.';
   function serverOnly(fn) {
@@ -403,6 +421,7 @@ var PS = (function () {
     var tabs = [
       { id: 'profile', label: 'Profil', href: 'app.html' },
       { id: 'wallet', label: 'Wallet', href: 'wallet.html' },
+      { id: 'market', label: 'Markt', href: 'market.html' },
       { id: 'feed', label: 'Feed', href: 'feed.html' },
       { id: 'friends', label: 'Freunde', href: 'friends.html' },
       { id: 'stats', label: 'Key Numbers', href: 'stats.html' }
@@ -435,6 +454,7 @@ var PS = (function () {
     register: register, login: login, guest: guest, upgrade: upgrade,
     logout: logout, deleteAccount: deleteAccount, setAvatar: setAvatar,
     claimStart: claimStart, wallet: wallet, stats: stats,
+    market: market, createOffer: createOffer, cancelOffer: cancelOffer, buyOffer: buyOffer,
     friends: friends, searchUsers: searchUsers, requestFriend: requestFriend,
     acceptFriend: acceptFriend, declineFriend: declineFriend, unfriend: unfriend,
     chat: chat, sendMessage: sendMessage,
