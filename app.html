@@ -76,12 +76,12 @@
       <input type="password" id="rg-pass" autocomplete="new-password" required minlength="4">
       <div class="hint">Mindestens 4 Zeichen.</div>
 
-      <label for="rg-email">E-Mail <span class="opt">(freiwillig — für Kontowiederherstellung &amp; Benachrichtigungen)</span></label>
+      <label for="rg-email">E-Mail <span class="opt">(freiwillig — nur für den Passwort-Reset)</span></label>
       <input type="email" id="rg-email" autocomplete="email" placeholder="du@beispiel.de">
       <div class="consent">
-        <strong>Hinweis:</strong> Wenn du eine E-Mail-Adresse angibst, stimmst du zu, von PoolSite
-        Benachrichtigungen (z.&nbsp;B. Projekt-Updates und Hinweise zur Kontowiederherstellung) zu erhalten.
-        Ohne E-Mail-Angabe ist keine Kontowiederherstellung möglich.
+        <strong>Datenschutz:</strong> Deine Adresse wird <strong>nicht gespeichert</strong> — nur ein
+        verschlüsselter Fingerabdruck. Beim Passwort-Reset gibst du sie erneut ein; nur bei Übereinstimmung
+        wird ein Code dorthin geschickt. Ohne E-Mail ist kein Passwort-Reset möglich.
       </div>
 
       <button class="btn" type="submit">Konto erstellen</button>
@@ -118,10 +118,10 @@
         <label for="ug-pass">Passwort</label>
         <input type="password" id="ug-pass" required minlength="4">
         <div class="hint">Mindestens 4 Zeichen.</div>
-        <label for="ug-email">E-Mail <span class="opt">(freiwillig)</span></label>
+        <label for="ug-email">E-Mail <span class="opt">(freiwillig — nur für den Passwort-Reset)</span></label>
         <input type="email" id="ug-email" placeholder="du@beispiel.de">
         <div class="consent">
-          <strong>Hinweis:</strong> Mit Angabe einer E-Mail-Adresse stimmst du Benachrichtigungen durch PoolSite zu.
+          <strong>Datenschutz:</strong> Die Adresse wird nicht gespeichert — nur ein verschlüsselter Fingerabdruck für den Passwort-Reset.
         </div>
         <button class="btn" type="submit">Konto übernehmen</button>
         <div class="msg" id="msg-upgrade"></div>
@@ -131,7 +131,7 @@
     <div class="info-list" id="pf-info">
       <div class="info-row"><span class="k">Nutzername</span><span class="v" id="pf-user">—</span></div>
       <div class="info-row"><span class="k">E-Mail</span><span class="v" id="pf-email">—</span></div>
-      <div class="info-row"><span class="k">Benachrichtigungen</span><span class="v" id="pf-notify">—</span></div>
+      <div class="info-row"><span class="k">Passwort-Reset</span><span class="v" id="pf-notify">—</span></div>
       <div class="info-row"><span class="k">Mitglied seit</span><span class="v" id="pf-since">—</span></div>
       <div class="info-row"><span class="k">Stable-Guthaben (EUR)</span><span class="v" id="pf-credits">—</span></div>
       <div class="info-row"><span class="k">Burn (Commitment B)</span><span class="v burn-chip" id="pf-burn">—</span></div>
@@ -365,10 +365,10 @@ function render() {
   document.getElementById('pf-name').textContent = rec.name;
   document.getElementById('pf-sub').textContent = guest ? 'Gastmodus — Konto noch nicht gesichert' : 'Dein PoolSite-Profil';
   document.getElementById('pf-user').textContent = guest ? 'Gast (ohne Konto)' : '@' + rec.name;
-  document.getElementById('pf-email').textContent = rec.email || 'nicht angegeben';
-  document.getElementById('pf-notify').innerHTML = rec.notifyConsent
-    ? '<span class="tag on">aktiviert</span>'
-    : '<span class="tag off">deaktiviert</span>';
+  document.getElementById('pf-email').textContent = rec.hasEmail ? 'hinterlegt — nicht im Klartext gespeichert' : 'nicht angegeben';
+  document.getElementById('pf-notify').innerHTML = rec.hasEmail
+    ? '<span class="tag on">möglich</span>'
+    : '<span class="tag off">nicht möglich</span>';
   document.getElementById('pf-since').textContent =
     new Date(rec.createdAt).toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' });
   document.getElementById('pf-credits').textContent = PS.fmtEur(rec.credits);

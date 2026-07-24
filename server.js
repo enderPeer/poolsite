@@ -37,6 +37,21 @@ const INVITE_SEAT_PRICE = 2.00;    // EUR-Credits pro Einladungsplatz
 
 /* ---------- Datenbank ---------- */
 let db = { users: {}, posts: [], sessions: {}, events: [], meta: null };
+/* Geheimer Salt fuer E-Mail-Fingerabdruecke (liegt getrennt von der DB, gitignored) */
+const SECRET_FILE = path.join(DATA_DIR, 'secret.key');
+let SECRET = '';
+function loadSecret() {
+  try { SECRET = fs.readFileSync(SECRET_FILE, 'utf8').trim(); } catch (e) {}
+  if (!SECRET) {
+    SECRET = crypto.randomBytes(32).toString('hex');
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(SECRET_FILE, SECRET);
+  }
+}
+function emailHash(email) {
+  return crypto.createHash('sha256').update(SECRET + ':' + String(email).trim().toLowerCase()).digest('hex');
+}
+
 function loadDb() {
   try { db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8')); } catch (e) { /* frische DB */ }
   db.users = db.users || {}; db.posts = db.posts || []; db.sessions = db.sessions || {};
@@ -48,6 +63,14 @@ function loadDb() {
   db.trades = db.trades || [];
   db.invites = db.invites || {};   // code -> { owner, seatsTotal, seatsUsed, createdAt }
   if (!db.meta) db.meta = { lastDay: dayStr(Date.now() - 86400000), carryover: 0, totalDistributed: 0 };
+  // Datenschutz-Migration: Klartext-E-Mails in Fingerabdruecke umwandeln und loeschen
+  for (const k of Object.keys(db.users)) {
+    const u = db.users[k];
+    if (u.email) {
+      u.emailHash = emailHash(u.email);
+      delete u.email;
+    }
+  }
 }
 
 /* Tages-Statistik: Zähler erhöhen und Nutzer als aktiv markieren */
@@ -64,7 +87,9 @@ function saveDb() {
   fs.writeFileSync(tmp, JSON.stringify(db));
   fs.renameSync(tmp, DB_FILE);
 }
+loadSecret();
 loadDb();
+saveDb(); // Migration sofort persistieren (Klartext-E-Mails endgültig raus)
 
 /* ---------- Helfer ---------- */
 function sha(s) { return crypto.createHash('sha256').update(s).digest('hex'); }
@@ -97,7 +122,7 @@ function mePayload(key) {
   const u = db.users[key];
   if (!u) return null;
   return {
-    key: key, name: u.name, email: u.email || null, notifyConsent: !!u.notifyConsent,
+    key: key, name: u.name, hasEmail: !!u.emailHash, notifyConsent: !!u.notifyConsent,
     createdAt: u.createdAt, avatar: u.avatar || null, guest: !!u.guest,
     credits: u.credits, burn: u.burn, actions: u.actions,
     tokens: u.tokens || 0, startClaimed: !!u.startClaimed,
@@ -143,7 +168,7 @@ function charge(u, action) {
 
 function newUserRecord(name, passHash, email, guest) {
   return {
-    name: name, passHash: passHash, email: email || null, notifyConsent: !!email,
+    name: name, passHash: passHash, emailHash: email ? emailHash(email) : null, notifyConsent: !!email,
     createdAt: new Date().toISOString(), avatar: null, guest: !!guest,
     credits: 0, burn: 0, actions: 0,
     tokens: 0, startClaimed: false, tokenHistory: [],
@@ -161,7 +186,7 @@ const MAIL_CONFIG_FILE = path.join(DATA_DIR, 'mail-config.json');
 function mailConfig() {
   try {
     const c = JSON.parse(fs.readFileSync(MAIL_CONFIG_FILE, 'utf8'));
-    if (c.host && c.user && c.pass) return c;
+    if (c.host && c.user && c.pass && c.pass.indexOf('HIER-') < 0) return c;
   } catch (e) {}
   return null;
 }
@@ -375,7 +400,8 @@ function handleApi(req, res, pathname, body) {
     const em = String(body.email || '').trim().toLowerCase();
     const u = db.users[k];
     const generic = { ok: true, message: 'Falls Nutzername und E-Mail zusammenpassen, wurde ein Code verschickt (15 Minuten gültig).' };
-    if (!u || u.guest || !u.email || u.email.toLowerCase() !== em) return json(res, 200, generic);
+    // Wir speichern keine Adressen — nur der Fingerabdruck wird verglichen; gesendet wird an die soeben eingegebene Adresse
+    if (!u || u.guest || !u.emailHash || emailHash(em) !== u.emailHash) return json(res, 200, generic);
     if (u.reset && Date.now() - (u.reset.requestedAt || 0) < 2 * 60 * 1000) {
       return json(res, 429, { error: 'Bitte warte 2 Minuten, bevor du einen neuen Code anforderst.' });
     }
@@ -387,8 +413,8 @@ function handleApi(req, res, pathname, body) {
       'dein PoolSite-Code zum Zurücksetzen des Passworts lautet:\n\n    ' + code + '\n\n' +
       'Der Code ist 15 Minuten gültig. Wenn du das nicht angefordert hast, ignoriere diese E-Mail.\n\n— PoolSite';
     if (cfg) {
-      sendMail(cfg, u.email, 'PoolSite: Passwort zurücksetzen', mailText)
-        .then(() => console.log('[mail] Reset-Code an ' + u.email + ' gesendet'))
+      sendMail(cfg, em, 'PoolSite: Passwort zurücksetzen', mailText)
+        .then(() => console.log('[mail] Reset-Code an verifizierte Adresse von ' + k + ' gesendet'))
         .catch(err => console.error('[mail] Versand fehlgeschlagen (' + err.message + ') — Code für ' + k + ': ' + code));
     } else {
       console.log('[mail] Kein Mail-Server konfiguriert (data/mail-config.json). Reset-Code für ' + k + ': ' + code);
@@ -524,7 +550,7 @@ function handleApi(req, res, pathname, body) {
     }
 
     db.users[nk] = Object.assign({}, me, {
-      name: name, passHash: sha(nk + ':' + pass), email: email || null,
+      name: name, passHash: sha(nk + ':' + pass), emailHash: email ? emailHash(email) : null,
       notifyConsent: !!email, guest: false
     });
     if (!db.users[nk].startClaimed) {
@@ -559,11 +585,8 @@ function handleApi(req, res, pathname, body) {
     if (body.email !== undefined) {
       const em = String(body.email || '').trim();
       if (em && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) return json(res, 400, { error: 'Ungültige E-Mail-Adresse.' });
-      me.email = em || null;
+      me.emailHash = em ? emailHash(em) : null; // nie im Klartext gespeichert
       me.notifyConsent = !!em;
-    }
-    if (body.notify !== undefined) {
-      me.notifyConsent = !!body.notify && !!me.email;
     }
     if (body.newPassword) {
       if (me.guest) return json(res, 400, { error: 'Gast-Konten haben kein Passwort — wandle dein Konto zuerst um.' });

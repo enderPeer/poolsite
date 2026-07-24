@@ -84,7 +84,7 @@ var PS = (function () {
     var rec = lUsers()[k]; if (!rec) return null;
     lEnsure(rec);
     return {
-      key: k, name: rec.name, email: rec.email || null, notifyConsent: !!rec.notifyConsent,
+      key: k, name: rec.name, hasEmail: !!rec.email, notifyConsent: !!rec.notifyConsent,
       createdAt: rec.createdAt, avatar: rec.avatar || null, guest: !!rec.guest,
       credits: rec.credits, burn: rec.burn, actions: rec.actions,
       tokens: rec.tokens || 0, startClaimed: !!rec.startClaimed
