@@ -29,7 +29,16 @@ function loadDb() {
   try { db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8')); } catch (e) { /* frische DB */ }
   db.users = db.users || {}; db.posts = db.posts || []; db.sessions = db.sessions || {};
   db.events = db.events || [];
+  db.stats = db.stats || {};
   if (!db.meta) db.meta = { lastDay: dayStr(Date.now() - 86400000), carryover: 0, totalDistributed: 0 };
+}
+
+/* Tages-Statistik: Zähler erhöhen und Nutzer als aktiv markieren */
+function stat(field, amount, userKey) {
+  const d = dayStr(Date.now());
+  const s = db.stats[d] = db.stats[d] || { logins: 0, regs: 0, guests: 0, posts: 0, comments: 0, likes: 0, dislikes: 0, burn: 0, act: {} };
+  if (field) s[field] = Math.round(((s[field] || 0) + amount) * 100) / 100;
+  if (userKey) s.act[userKey] = 1;
 }
 function dayStr(t) { return new Date(t).toISOString().slice(0, 10); }
 function saveDb() {
@@ -162,10 +171,12 @@ function distribute() {
     db.meta.lastDay = next;
     changed = true;
   }
-  // alte Events aufräumen (> 40 Tage)
+  // alte Events (> 40 Tage) und alte Tagesstatistiken (> 90 Tage) aufräumen
   const cutoff = dayStr(Date.now() - 40 * 86400000);
   const before = db.events.length;
   db.events = db.events.filter(e => e.d >= cutoff);
+  const statCutoff = dayStr(Date.now() - 90 * 86400000);
+  for (const d of Object.keys(db.stats)) if (d < statCutoff) delete db.stats[d];
   if (changed || db.events.length !== before) saveDb();
 }
 
@@ -188,6 +199,7 @@ function handleApi(req, res, pathname, body) {
     db.users[k] = newUserRecord(name, sha(k + ':' + pass), email, false);
     const token = newId('tok');
     db.sessions[token] = k;
+    stat('regs', 1, k);
     saveDb();
     return json(res, 200, { token: token, me: mePayload(k) });
   }
@@ -201,6 +213,7 @@ function handleApi(req, res, pathname, body) {
     }
     const token = newId('tok');
     db.sessions[token] = k;
+    stat('logins', 1, k);
     saveDb();
     return json(res, 200, { token: token, me: mePayload(k) });
   }
@@ -210,8 +223,48 @@ function handleApi(req, res, pathname, body) {
     db.users[k] = newUserRecord('Gast', null, null, true);
     const token = newId('tok');
     db.sessions[token] = k;
+    stat('guests', 1, k);
     saveDb();
     return json(res, 200, { token: token, me: mePayload(k) });
+  }
+
+  if (pathname === '/api/stats' && req.method === 'GET') {
+    distribute();
+    const daily = [];
+    for (let i = 13; i >= 0; i--) {
+      const d = dayStr(Date.now() - i * 86400000);
+      const s = db.stats[d] || {};
+      daily.push({
+        day: d, logins: s.logins || 0, regs: s.regs || 0, guests: s.guests || 0,
+        posts: s.posts || 0, comments: s.comments || 0, likes: s.likes || 0,
+        dislikes: s.dislikes || 0, burn: s.burn || 0,
+        actives: s.act ? Object.keys(s.act).length : 0
+      });
+    }
+    let users = 0, guests = 0, burn = 0, credits = 0, claimed = 0;
+    for (const k of Object.keys(db.users)) {
+      const u = db.users[k];
+      if (u.guest) guests++; else users++;
+      burn += u.burn || 0; credits += u.credits || 0;
+      if (u.startClaimed) claimed++;
+    }
+    let comments = 0, likes = 0, dislikes = 0;
+    db.posts.forEach(p => {
+      comments += (p.comments || []).length;
+      likes += (p.likes || []).length;
+      dislikes += (p.dislikes || []).length;
+    });
+    const todayS = db.stats[dayStr(Date.now())];
+    return json(res, 200, {
+      totals: {
+        users: users, guests: guests, posts: db.posts.length,
+        comments: comments, likes: likes, dislikes: dislikes,
+        burn: round2(burn), credits: round2(credits), claimed: claimed,
+        tokensDistributed: db.meta.totalDistributed, carryover: db.meta.carryover,
+        activesToday: todayS && todayS.act ? Object.keys(todayS.act).length : 0
+      },
+      daily: daily
+    });
   }
 
   if (pathname === '/api/posts' && req.method === 'GET') {
@@ -322,6 +375,8 @@ function handleApi(req, res, pathname, body) {
     const pay = charge(me, 'post');
     if (!pay.ok) return json(res, 402, { error: pay.error });
     db.posts.push({ id: newId('post'), author: key, text: text, createdAt: new Date().toISOString(), likes: [], dislikes: [], comments: [] });
+    stat('posts', 1, key);
+    stat('burn', PRICES.post);
     saveDb();
     return json(res, 200, { me: mePayload(key) });
   }
@@ -344,6 +399,8 @@ function handleApi(req, res, pathname, body) {
       if (j >= 0) other.splice(j, 1);
       list.push(key);
       logEvent(kind === 'likes' ? 'like' : 'dislike', key, p.author);
+      stat(kind, 1, key);
+      stat('burn', kind === 'likes' ? PRICES.like : PRICES.dislike);
     }
     saveDb();
     return json(res, 200, { me: mePayload(key), post: postPayload(p) });
@@ -360,6 +417,8 @@ function handleApi(req, res, pathname, body) {
     p.comments = p.comments || [];
     p.comments.push({ id: newId('c'), author: key, text: text, createdAt: new Date().toISOString() });
     logEvent('comment', key, p.author);
+    stat('comments', 1, key);
+    stat('burn', PRICES.comment);
     saveDb();
     return json(res, 200, { me: mePayload(key), post: postPayload(p) });
   }

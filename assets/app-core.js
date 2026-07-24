@@ -287,6 +287,13 @@ var PS = (function () {
     return Promise.resolve({ local: true, tokens: 0, history: [], yesterday: 0, todayWeight: 0, networkWeight: 0, projected: 0, poolToday: 5000, carryover: 0, totalDistributed: 0, nextDistribution: null });
   }
 
+  function stats() {
+    if (mode === 'server') {
+      return call('/api/stats');
+    }
+    return Promise.resolve({ local: true, totals: {}, daily: [] });
+  }
+
   function posts() {
     if (mode === 'server') {
       return call('/api/posts').then(function (d) { return d.posts; });
@@ -378,7 +385,8 @@ var PS = (function () {
     var tabs = [
       { id: 'profile', label: '👤 Profil', href: 'app.html' },
       { id: 'wallet', label: '💰 Wallet', href: 'wallet.html' },
-      { id: 'feed', label: '📰 Newsfeed', href: 'feed.html' }
+      { id: 'feed', label: '📰 Newsfeed', href: 'feed.html' },
+      { id: 'stats', label: '📊 Key Numbers', href: 'stats.html' }
     ];
     var credits = cachedMe ? cachedMe.credits : 0;
     host.innerHTML = '<div class="wrap appnav-inner">' + tabs.map(function (t) {
@@ -407,7 +415,7 @@ var PS = (function () {
     me: function () { return cachedMe; }, refreshMe: refreshMe,
     register: register, login: login, guest: guest, upgrade: upgrade,
     logout: logout, deleteAccount: deleteAccount, setAvatar: setAvatar,
-    claimStart: claimStart, wallet: wallet,
+    claimStart: claimStart, wallet: wallet, stats: stats,
     posts: posts, addPost: addPost, react: react,
     addComment: addComment, delComment: delComment, delPost: delPost,
     fmtEur: fmtEur, avatarHtml: avatarHtml, escapeHtml: escapeHtml, timeAgo: timeAgo,
