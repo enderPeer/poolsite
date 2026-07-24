@@ -21,7 +21,7 @@
 <main>
   <div class="wrap">
     <div class="feed-col">
-      <h1 class="page-title">👥 Freunde</h1>
+      <h1 class="page-title">Freunde</h1>
       <p class="page-sub">Finde Nutzer, sende Anfragen — und chatte mit deinen Freunden.</p>
 
       <div id="local-note" class="chart-card" style="display:none">
@@ -87,7 +87,7 @@ function doSearch() {
     if (!users.length) { host.innerHTML = '<div class="feed-empty">Keine Nutzer gefunden.</div>'; return; }
     host.innerHTML = users.map(function (u) {
       var act;
-      if (u.relation === 'friend') act = '<a class="pill-btn primary" href="chat.html?u=' + u.key + '">💬 Chat</a>';
+      if (u.relation === 'friend') act = '<a class="pill-btn primary" href="chat.html?u=' + u.key + '">Chat</a>';
       else if (u.relation === 'out') act = '<span class="pill-btn" style="opacity:.6">Angefragt ✓</span>';
       else if (u.relation === 'in') act = '<button class="pill-btn primary" onclick="accept(\'' + u.key + '\')">Annehmen</button>';
       else act = '<button class="pill-btn primary" onclick="request(\'' + u.key + '\')">＋ Anfragen</button>';
@@ -133,7 +133,7 @@ function refresh() {
     fl.innerHTML = d.friends.length
       ? d.friends.map(function (u) {
           return row(u,
-            '<a class="pill-btn primary" href="chat.html?u=' + u.key + '">💬 Chat</a>' +
+            '<a class="pill-btn primary" href="chat.html?u=' + u.key + '">Chat</a>' +
             '<button class="pill-btn danger" onclick="remove(\'' + u.key + '\')">✕</button>');
         }).join('')
       : '<div class="feed-empty">Noch keine Freunde — such oben nach Nutzern und sende eine Anfrage!</div>';

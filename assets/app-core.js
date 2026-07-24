@@ -401,17 +401,17 @@ var PS = (function () {
     var host = document.getElementById('app-nav');
     if (!host) return;
     var tabs = [
-      { id: 'profile', label: '👤 Profil', href: 'app.html' },
-      { id: 'wallet', label: '💰 Wallet', href: 'wallet.html' },
-      { id: 'feed', label: '📰 Newsfeed', href: 'feed.html' },
-      { id: 'friends', label: '👥 Freunde', href: 'friends.html' },
-      { id: 'stats', label: '📊 Key Numbers', href: 'stats.html' }
+      { id: 'profile', label: 'Profil', href: 'app.html' },
+      { id: 'wallet', label: 'Wallet', href: 'wallet.html' },
+      { id: 'feed', label: 'Feed', href: 'feed.html' },
+      { id: 'friends', label: 'Freunde', href: 'friends.html' },
+      { id: 'stats', label: 'Key Numbers', href: 'stats.html' }
     ];
     var credits = cachedMe ? cachedMe.credits : 0;
     host.innerHTML = '<div class="wrap appnav-inner">' + tabs.map(function (t) {
       return '<a class="appnav-tab' + (t.id === active ? ' active' : '') + '" href="' + t.href + '">' + t.label + '</a>';
     }).join('') + '<span class="appnav-grow"></span>' +
-      '<a class="appnav-credits" href="wallet.html" title="Stable-Guthaben">💶 ' + fmtEur(credits) + '</a>' +
+      '<a class="appnav-credits" href="wallet.html" title="Stable-Guthaben">' + fmtEur(credits) + '</a>' +
       '<a class="appnav-post" href="feed.html#neu">＋ Beitrag</a></div>';
     host.style.display = '';
   }

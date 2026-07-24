@@ -79,7 +79,7 @@ function loadSocial() {
 function friendButton(authorKey) {
   var me = PS.me();
   if (PS.getMode() !== 'server' || !me || authorKey === me.key) return '';
-  if (social.friends[authorKey]) return '<a class="pill-btn" href="chat.html?u=' + authorKey + '" title="Ihr seid befreundet — zum Chat">💬</a>';
+  if (social.friends[authorKey]) return '<a class="pill-btn" href="chat.html?u=' + authorKey + '" title="Ihr seid befreundet — zum Chat">Chat</a>';
   if (social.out[authorKey]) return '<span class="pill-btn" style="opacity:.55" title="Anfrage gesendet">✓</span>';
   if (social.incoming[authorKey]) return '<button class="pill-btn primary" onclick="acceptFromFeed(\'' + authorKey + '\')" title="Freundschaftsanfrage annehmen">Annehmen</button>';
   return '<button class="pill-btn" onclick="addFriendFromFeed(\'' + authorKey + '\')" title="Freundschaft anfragen">＋ Freund</button>';
