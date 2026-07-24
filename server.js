@@ -282,7 +282,9 @@ function dayWeights(day) {
   for (const e of db.events) {
     if (e.d !== day) continue;
     const actor = db.users[e.a];
-    if (!actor) continue;
+    if (!actor || actor.guest) continue;              // Gäste geben kein Gewicht
+    const creator = db.users[e.c];
+    if (!creator || creator.guest) continue;          // Gäste erhalten keine Token
     const a = alphaHat(actor);
     if (actor.actions === 0 || a < RHO) continue; // Gate geschlossen -> Gewicht 0
     const pk = e.a + '>' + e.c;
@@ -725,8 +727,9 @@ function handleApi(req, res, pathname, body) {
     });
   }
 
-  /* ---------- sBTC: Faucet & Burn (Demo-Bitcoin) ---------- */
+  /* ---------- sBTC: Faucet & Burn (Demo-Bitcoin) — nicht für Gäste ---------- */
   if (pathname === '/api/btc/faucet' && req.method === 'POST') {
+    if (me.guest) return json(res, 403, { error: 'Nur für volle Konten — der Gast-Zugang ist zum Umsehen da. Lass dich einladen, um mitzumachen.' });
     const today = dayStr(Date.now());
     if (me.lastFaucet === today) return json(res, 400, { error: 'Faucet heute schon genutzt — morgen wieder.' });
     me.lastFaucet = today;
@@ -737,6 +740,7 @@ function handleApi(req, res, pathname, body) {
   }
 
   if (pathname === '/api/btc/burn' && req.method === 'POST') {
+    if (me.guest) return json(res, 403, { error: 'Nur für volle Konten — der Gast-Zugang ist zum Umsehen da.' });
     const amount = r8(+body.amount || 0);
     if (!(amount > 0)) return json(res, 400, { error: 'Ungültige Menge.' });
     if ((me.sbtc || 0) + 1e-12 < amount) return json(res, 400, { error: 'Nicht genug sBTC — du hast ' + (me.sbtc || 0).toFixed(8) + '.' });
@@ -778,6 +782,7 @@ function handleApi(req, res, pathname, body) {
   }
 
   if (pathname === '/api/market/offers' && req.method === 'POST') {
+    if (me.guest) return json(res, 403, { error: 'Nur für volle Konten — Gäste können nicht mit Token handeln.' });
     const currency = body.currency === 'SBTC' ? 'SBTC' : 'EUR';
     const amount = Math.round((+body.amount || 0) * 100) / 100;
     const price = currency === 'SBTC'
@@ -805,6 +810,7 @@ function handleApi(req, res, pathname, body) {
 
   const mBuy = pathname.match(/^\/api\/market\/offers\/([\w]+)\/buy$/);
   if (mBuy && req.method === 'POST') {
+    if (me.guest) return json(res, 403, { error: 'Nur für volle Konten — Gäste können nicht mit Token handeln.' });
     const offer = db.offers.find(o => o.id === mBuy[1]);
     if (!offer) return json(res, 404, { error: 'Angebot nicht mehr verfügbar.' });
     if (offer.seller === key) return json(res, 400, { error: 'Du kannst dein eigenes Angebot nicht kaufen.' });

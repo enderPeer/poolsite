@@ -38,7 +38,12 @@
           <div class="stat"><div class="v" id="m-sbtc">—</div><div class="l">Dein sBTC (Demo)</div></div>
         </div>
 
-        <div class="chart-card">
+        <div class="chart-card" id="guest-note" style="display:none">
+          <h3>Nur zum Zusehen</h3>
+          <div class="hint" style="margin-bottom:0">Als Gast kannst du den Markt ansehen, aber nicht handeln. Lass dich von einem Mitglied einladen, um Token zu kaufen und zu verkaufen.</div>
+        </div>
+
+        <div class="chart-card" id="sell-card">
           <h3>Token verkaufen</h3>
           <div class="hint">Deine Token wandern bis zum Verkauf oder Rückzug in ein Treuhand-Depot.</div>
           <div class="market-form">
@@ -156,6 +161,9 @@ function render(d) {
   document.getElementById('fee-pct').textContent = fmt(feePct);
 
   var me = PS.me();
+  var isGuest = !!me.guest;
+  document.getElementById('sell-card').style.display = isGuest ? 'none' : '';
+  document.getElementById('guest-note').style.display = isGuest ? '' : 'none';
   document.getElementById('m-price').textContent = d.lastPrice ? fmtPrice(d.lastPrice) : '—';
   document.getElementById('m-tokens').textContent = fmt(me.tokens, 2) + ' PST';
   document.getElementById('m-credits').textContent = PS.fmtEur(me.credits);
@@ -168,8 +176,10 @@ function render(d) {
     host.innerHTML = d.offers.map(function (o) {
       var right = o.mine
         ? '<button class="pill-btn danger" onclick="cancelOffer(\'' + o.id + '\')">Zurückziehen</button>'
-        : '<span class="buy-group"><input type="number" id="buy-' + o.id + '" value="' + o.amount + '" min="1" max="' + o.amount + '" step="1">' +
-          '<button class="pill-btn primary" onclick="buyOffer(\'' + o.id + '\')">Kaufen</button></span>';
+        : (isGuest
+          ? '<span class="pill-btn" style="opacity:.5" title="Nur für volle Konten">Nur mit Einladung</span>'
+          : '<span class="buy-group"><input type="number" id="buy-' + o.id + '" value="' + o.amount + '" min="1" max="' + o.amount + '" step="1">' +
+            '<button class="pill-btn primary" onclick="buyOffer(\'' + o.id + '\')">Kaufen</button></span>');
       return '<div class="friend-row">' +
         '<div class="avatar-sm">' + PS.avatarHtml(o.seller) + '</div>' +
         '<div class="who">' +

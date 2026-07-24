@@ -41,10 +41,11 @@
       </div>
     </div>
 
-    <div class="chart-card">
+    <div class="chart-card" id="btc-card">
       <h3>Bitcoin (Demo) — sBTC verbrennen für Credits</h3>
       <div class="hint">Simuliertes Bitcoin ohne echten Wert. Verbranntes sBTC geht unwiderruflich an die Dead-Address und wird zu EUR-Credits (Kurs: 1 sBTC = 100.000 €).</div>
-      <div class="stats" style="margin-bottom:14px">
+      <div class="hint" id="btc-guest-note" style="display:none; color:var(--gold)">Nur für volle Konten — als Gast kannst du hier nur zusehen. Lass dich einladen, um mitzumachen.</div>
+      <div class="stats" id="btc-controls" style="margin-bottom:14px">
         <div class="stat">
           <div class="v aqua" id="b-balance">—</div>
           <div class="l">Dein sBTC-Guthaben</div>
@@ -211,6 +212,10 @@ function renderWallet(w) {
   document.getElementById('w-credits').textContent = PS.fmtEur(rec.credits);
   document.getElementById('w-burn').textContent = PS.fmtEur(rec.burn);
   document.getElementById('b-balance').textContent = PS.fmtBtc(rec.sbtc);
+
+  // Gäste: alle Token-Interaktionen gesperrt
+  document.getElementById('btc-controls').style.display = rec.guest ? 'none' : '';
+  document.getElementById('btc-guest-note').style.display = rec.guest ? '' : 'none';
 
   // Referral-Einnahmen (10 % der Token deiner Eingeladenen)
   document.getElementById('w-referral').textContent = fmt(rec.referralEarned || 0, 2) + ' PST';
