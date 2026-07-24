@@ -492,8 +492,59 @@ function handleApi(req, res, pathname, body) {
   }
 
   if (pathname === '/api/posts' && req.method === 'GET') {
-    const posts = db.posts.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    return json(res, 200, { posts: posts.map(postPayload) });
+    const qs = new URLSearchParams(req.url.split('?')[1] || '');
+    const sort = qs.get('sort') || 'new';
+    const type = qs.get('type') || 'all';
+    const range = qs.get('range') || 'all';
+    const friendsOnly = qs.get('friends') === '1';
+
+    // Ranking-Score: Engagement gewichtet mit dem Standing-Kernel des Reagierenden
+    // (konsistent zum Punktesystem — Reaktionen ohne Einsatz zaehlen ~0)
+    function kernelOf(k2) {
+      const u = db.users[k2];
+      return u && u.actions > 0 ? lam(alphaHat(u)) : 0;
+    }
+    function contentScore(p) {
+      let s = 0;
+      (p.likes || []).forEach(k2 => { s += 1.0 * kernelOf(k2); });
+      (p.dislikes || []).forEach(k2 => { s -= 0.4 * kernelOf(k2); });
+      (p.comments || []).forEach(c => { if (c.author !== p.author) s += 1.2 * kernelOf(c.author); });
+      return Math.round(s * 100) / 100;
+    }
+    function hotScore(p, score) {
+      const ageH = (Date.now() - new Date(p.createdAt).getTime()) / 3600000;
+      return score / Math.pow(ageH + 2, 1.5);
+    }
+
+    let list = db.posts.slice();
+
+    if (type === 'image') list = list.filter(p => p.image);
+    else if (type === 'video') list = list.filter(p => p.video);
+    else if (type === 'text') list = list.filter(p => !p.image && !p.video);
+
+    if (range === 'day') list = list.filter(p => Date.now() - new Date(p.createdAt) < 86400000);
+    else if (range === 'week') list = list.filter(p => Date.now() - new Date(p.createdAt) < 7 * 86400000);
+
+    if (friendsOnly && me) {
+      const fset = {};
+      (me.friends || []).forEach(f => { fset[f] = 1; });
+      fset[key] = 1; // eigene Beitraege mit anzeigen
+      list = list.filter(p => fset[p.author]);
+    }
+
+    const scored = list.map(p => {
+      const score = contentScore(p);
+      return { p: p, score: score, hot: hotScore(p, score) };
+    });
+
+    if (sort === 'top') scored.sort((a, b) => b.score - a.score || new Date(b.p.createdAt) - new Date(a.p.createdAt));
+    else if (sort === 'hot') scored.sort((a, b) => b.hot - a.hot || new Date(b.p.createdAt) - new Date(a.p.createdAt));
+    else if (sort === 'discussed') scored.sort((a, b) => (b.p.comments || []).length - (a.p.comments || []).length || new Date(b.p.createdAt) - new Date(a.p.createdAt));
+    else scored.sort((a, b) => new Date(b.p.createdAt) - new Date(a.p.createdAt));
+
+    return json(res, 200, {
+      posts: scored.map(x => Object.assign(postPayload(x.p), { score: x.score }))
+    });
   }
 
   // Ab hier: Anmeldung nötig

@@ -208,6 +208,30 @@ input:focus, textarea:focus { border-color: var(--aqua); }
 
 /* Newsfeed */
 .feed-col { max-width: 640px; margin: 0 auto; }
+
+/* Filter & Sortierung */
+.filter-bar {
+  display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+  justify-content: space-between; margin-bottom: 18px;
+}
+.sort-pills { display: flex; gap: 6px; }
+.sort-pills button {
+  padding: 7px 14px; border-radius: 999px; cursor: pointer; font-family: var(--font-body);
+  border: 1px solid var(--line); background: var(--bg-soft); color: var(--muted); font-size: .86rem;
+}
+.sort-pills button.active { border-color: var(--aqua); color: var(--aqua); background: rgba(45,212,191,.08); font-weight: 600; }
+.filter-selects { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.filter-selects select {
+  padding: 7px 10px; border-radius: 8px; font-size: .84rem; font-family: var(--font-body);
+  border: 1px solid var(--line); background: var(--bg-soft); color: var(--text); outline: none;
+}
+.filter-selects select:focus { border-color: var(--aqua); }
+.f-check { display: flex; gap: 6px; align-items: center; font-size: .84rem; color: var(--muted); cursor: pointer; }
+.f-check input { accent-color: var(--aqua); }
+@media (max-width: 640px) {
+  .filter-bar { flex-direction: column; align-items: stretch; }
+  .sort-pills { overflow-x: auto; }
+}
 .composer {
   background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
   padding: 20px; margin-bottom: 24px; display: flex; gap: 14px;

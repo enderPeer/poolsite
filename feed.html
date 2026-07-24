@@ -52,6 +52,29 @@
         </div>
       </div>
 
+      <div class="filter-bar">
+        <div class="sort-pills" id="sort-pills">
+          <button data-sort="new" class="active" onclick="setSort('new')">Neu</button>
+          <button data-sort="hot" onclick="setSort('hot')">Heiß</button>
+          <button data-sort="top" onclick="setSort('top')">Top</button>
+          <button data-sort="discussed" onclick="setSort('discussed')">Diskutiert</button>
+        </div>
+        <div class="filter-selects">
+          <select id="f-type" onchange="applyFilters()">
+            <option value="all">Alle Typen</option>
+            <option value="text">Nur Text</option>
+            <option value="image">Nur Bilder</option>
+            <option value="video">Nur Videos</option>
+          </select>
+          <select id="f-range" onchange="applyFilters()">
+            <option value="all">Gesamter Zeitraum</option>
+            <option value="day">Letzte 24 h</option>
+            <option value="week">Letzte Woche</option>
+          </select>
+          <label class="f-check"><input type="checkbox" id="f-friends" onchange="applyFilters()"> Nur Freunde</label>
+        </div>
+      </div>
+
       <div id="posts"><div class="feed-empty">Lade Feed…</div></div>
     </div>
   </div>
@@ -72,6 +95,24 @@ function setMsg(text, type) {
 }
 
 var social = { friends: {}, out: {}, incoming: {} };
+
+/* Filter & Sortierung */
+var feedOpts = { sort: 'new', type: 'all', range: 'all', friends: false };
+
+function setSort(s) {
+  feedOpts.sort = s;
+  document.querySelectorAll('#sort-pills button').forEach(function (b) {
+    b.classList.toggle('active', b.getAttribute('data-sort') === s);
+  });
+  refresh();
+}
+
+function applyFilters() {
+  feedOpts.type = document.getElementById('f-type').value;
+  feedOpts.range = document.getElementById('f-range').value;
+  feedOpts.friends = document.getElementById('f-friends').checked;
+  refresh();
+}
 
 function loadSocial() {
   return PS.friends().then(function (d) {
@@ -108,7 +149,7 @@ function acceptFromFeed(k) {
 
 function refresh() {
   PS.renderNav('feed');
-  return loadSocial().then(PS.posts).then(renderPosts).catch(function (e) {
+  return loadSocial().then(function () { return PS.posts(feedOpts); }).then(renderPosts).catch(function (e) {
     document.getElementById('posts').innerHTML = '<div class="feed-empty">Feed konnte nicht geladen werden: ' + PS.escapeHtml(e.message) + '</div>';
   });
 }
@@ -352,7 +393,7 @@ function renderPosts(posts) {
         '<div class="avatar-sm">' + PS.avatarHtml(p.author) + '</div>' +
         '<div class="who">' +
           '<div class="name">' + PS.escapeHtml(p.author.name) + '</div>' +
-          '<div class="when">' + PS.timeAgo(p.createdAt) + '</div>' +
+          '<div class="when">' + PS.timeAgo(p.createdAt) + (p.score ? ' · Score ' + String(p.score).replace('.', ',') : '') + '</div>' +
         '</div>' +
         friendButton(p.authorKey) +
       '</div>' +
@@ -385,7 +426,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
     // Live-Modus: Feed alle 10 Sekunden aktualisieren, damit fremde Beiträge erscheinen
     if (PS.getMode() === 'server') {
-      setInterval(function () { PS.posts().then(renderPosts).catch(function () {}); }, 10000);
+      setInterval(function () { PS.posts(feedOpts).then(renderPosts).catch(function () {}); }, 10000);
     }
   });
 });

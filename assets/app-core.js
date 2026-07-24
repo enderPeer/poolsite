@@ -449,15 +449,35 @@ var PS = (function () {
   function chat(k) { return serverOnly(function () { return call('/api/chat/' + k); }); }
   function sendMessage(k, text) { return serverOnly(function () { return call('/api/chat/' + k, 'POST', { text: text }); }); }
 
-  function posts() {
+  function posts(opts) {
+    opts = opts || {};
     if (mode === 'server') {
-      return call('/api/posts').then(function (d) { return d.posts; });
+      var q = [];
+      if (opts.sort) q.push('sort=' + opts.sort);
+      if (opts.type && opts.type !== 'all') q.push('type=' + opts.type);
+      if (opts.range && opts.range !== 'all') q.push('range=' + opts.range);
+      if (opts.friends) q.push('friends=1');
+      return call('/api/posts' + (q.length ? '?' + q.join('&') : '')).then(function (d) { return d.posts; });
     }
+    // Lokal-Modus: einfache Filter & Sortierung ohne Standing-Gewichtung
     var users = lUsers();
-    return Promise.resolve(
-      lPosts().slice().sort(function (a, b) { return new Date(b.createdAt) - new Date(a.createdAt); })
-        .map(function (p) { return lPostPayload(users, p); })
-    );
+    var list = lPosts().slice();
+    if (opts.type === 'image') list = list.filter(function (p) { return p.image; });
+    else if (opts.type === 'video') list = list.filter(function (p) { return p.video; });
+    else if (opts.type === 'text') list = list.filter(function (p) { return !p.image && !p.video; });
+    if (opts.range === 'day') list = list.filter(function (p) { return Date.now() - new Date(p.createdAt) < 86400000; });
+    else if (opts.range === 'week') list = list.filter(function (p) { return Date.now() - new Date(p.createdAt) < 7 * 86400000; });
+    function score(p) { return (p.likes || []).length - 0.4 * (p.dislikes || []).length + 1.2 * (p.comments || []).length; }
+    if (opts.sort === 'top') list.sort(function (a, b) { return score(b) - score(a); });
+    else if (opts.sort === 'hot') list.sort(function (a, b) {
+      function h(p) { return score(p) / Math.pow((Date.now() - new Date(p.createdAt)) / 3600000 + 2, 1.5); }
+      return h(b) - h(a);
+    });
+    else if (opts.sort === 'discussed') list.sort(function (a, b) { return (b.comments || []).length - (a.comments || []).length; });
+    else list.sort(function (a, b) { return new Date(b.createdAt) - new Date(a.createdAt); });
+    return Promise.resolve(list.map(function (p) {
+      return Object.assign(lPostPayload(users, p), { score: Math.round(score(p) * 100) / 100 });
+    }));
   }
 
   function addPost(text, image, video) {
