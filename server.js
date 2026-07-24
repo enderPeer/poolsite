@@ -14,6 +14,12 @@ const PORT = process.env.PORT || 3000;
 
 const PRICES = { post: 0.10, comment: 0.05, like: 0.02, dislike: 0.02 };
 const START_CREDITS = 10.00;
+
+/* sBTC — simuliertes Demo-Bitcoin (kein echtes Geld, keine echte Blockchain) */
+const SBTC_RATE = 100000;                 // 1 sBTC = 100.000 EUR-Credits (fester Demo-Kurs)
+const FAUCET_AMOUNT = 0.0002;             // täglich abholbar (= 20 € beim Burn)
+const DEAD_ADDRESS = 'sbtc1qdead000000000000000000000000000burn';
+function r8(n) { return Math.round(n * 1e8) / 1e8; }
 const USER_RE = /^[A-Za-z0-9][A-Za-z0-9._]{1,29}$/;
 const MAX_BODY = 1024 * 1024; // 1 MB (Avatare & komprimierte Beitragsbilder als DataURL)
 const MAX_IMAGE = 700 * 1024; // max. Bildgröße nach Client-Kompression
@@ -88,7 +94,8 @@ function mePayload(key) {
     key: key, name: u.name, email: u.email || null, notifyConsent: !!u.notifyConsent,
     createdAt: u.createdAt, avatar: u.avatar || null, guest: !!u.guest,
     credits: u.credits, burn: u.burn, actions: u.actions,
-    tokens: u.tokens || 0, startClaimed: !!u.startClaimed
+    tokens: u.tokens || 0, startClaimed: !!u.startClaimed,
+    sbtc: u.sbtc || 0
   };
 }
 
@@ -118,7 +125,8 @@ function newUserRecord(name, passHash, email, guest) {
     name: name, passHash: passHash, email: email || null, notifyConsent: !!email,
     createdAt: new Date().toISOString(), avatar: null, guest: !!guest,
     credits: 0, burn: 0, actions: 0,
-    tokens: 0, startClaimed: false, tokenHistory: []
+    tokens: 0, startClaimed: false, tokenHistory: [],
+    sbtc: 0, lastFaucet: null
   };
 }
 
@@ -374,7 +382,10 @@ function handleApi(req, res, pathname, body) {
     const yEntry = (me.tokenHistory || []).filter(h => h.day === yesterday);
     const nextMidnight = new Date();
     nextMidnight.setUTCHours(24, 0, 0, 0);
-    const lastPrice = db.trades.length ? db.trades[db.trades.length - 1].pricePerToken : null;
+    const lastT = db.trades[db.trades.length - 1];
+    const lastPrice = lastT
+      ? Math.round((lastT.currency === 'SBTC' ? lastT.pricePerToken * SBTC_RATE : lastT.pricePerToken) * 10000) / 10000
+      : null;
     return json(res, 200, {
       me: mePayload(key),
       wallet: {
@@ -394,33 +405,70 @@ function handleApi(req, res, pathname, body) {
     });
   }
 
+  /* ---------- sBTC: Faucet & Burn (Demo-Bitcoin) ---------- */
+  if (pathname === '/api/btc/faucet' && req.method === 'POST') {
+    const today = dayStr(Date.now());
+    if (me.lastFaucet === today) return json(res, 400, { error: 'Faucet heute schon genutzt — morgen wieder.' });
+    me.lastFaucet = today;
+    me.sbtc = r8((me.sbtc || 0) + FAUCET_AMOUNT);
+    stat(null, 0, key);
+    saveDb();
+    return json(res, 200, { me: mePayload(key) });
+  }
+
+  if (pathname === '/api/btc/burn' && req.method === 'POST') {
+    const amount = r8(+body.amount || 0);
+    if (!(amount > 0)) return json(res, 400, { error: 'Ungültige Menge.' });
+    if ((me.sbtc || 0) + 1e-12 < amount) return json(res, 400, { error: 'Nicht genug sBTC — du hast ' + (me.sbtc || 0).toFixed(8) + '.' });
+    const credits = round2(amount * SBTC_RATE);
+    if (credits < 0.01) return json(res, 400, { error: 'Menge zu klein — ergibt weniger als 0,01 €.' });
+    me.sbtc = r8(me.sbtc - amount);
+    me.credits = round2(me.credits + credits);
+    db.meta.sbtcBurned = r8((db.meta.sbtcBurned || 0) + amount);
+    stat(null, 0, key);
+    saveDb();
+    return json(res, 200, { me: mePayload(key), credited: credits, deadAddress: DEAD_ADDRESS });
+  }
+
   /* ---------- Markt: Token-Handel zwischen Nutzern ---------- */
   const TRADE_FEE = 0.04; // 4 % Plattformgebühr (2 % Treasury + 1 % Pool + 1 % Referral)
 
+  function eurEquiv(price, currency) { return currency === 'SBTC' ? price * SBTC_RATE : price; }
+
   if (pathname === '/api/market' && req.method === 'GET') {
     const offers = db.offers.slice()
-      .sort((a, b) => a.pricePerToken - b.pricePerToken)
+      .sort((a, b) => eurEquiv(a.pricePerToken, a.currency || 'EUR') - eurEquiv(b.pricePerToken, b.currency || 'EUR'))
       .map(o => ({
         id: o.id, amount: o.amount, pricePerToken: o.pricePerToken,
-        total: round2(o.amount * o.pricePerToken),
+        currency: o.currency || 'EUR',
+        total: o.currency === 'SBTC' ? r8(o.amount * o.pricePerToken) : round2(o.amount * o.pricePerToken),
         seller: publicUser(o.seller), mine: o.seller === key, createdAt: o.createdAt
       }));
     const trades = db.trades.slice(-30).reverse().map(t => ({
-      amount: t.amount, pricePerToken: t.pricePerToken, total: t.total, at: t.at,
+      amount: t.amount, pricePerToken: t.pricePerToken, currency: t.currency || 'EUR',
+      total: t.total, at: t.at,
       buyer: publicUser(t.buyer).name, seller: publicUser(t.seller).name
     }));
-    const lastPrice = db.trades.length ? db.trades[db.trades.length - 1].pricePerToken : null;
-    return json(res, 200, { offers: offers, trades: trades, lastPrice: lastPrice, feePct: TRADE_FEE * 100, me: mePayload(key) });
+    const lastTrade = db.trades[db.trades.length - 1];
+    const lastPrice = lastTrade ? Math.round(eurEquiv(lastTrade.pricePerToken, lastTrade.currency || 'EUR') * 10000) / 10000 : null;
+    return json(res, 200, {
+      offers: offers, trades: trades, lastPrice: lastPrice,
+      feePct: TRADE_FEE * 100, sbtcRate: SBTC_RATE, me: mePayload(key)
+    });
   }
 
   if (pathname === '/api/market/offers' && req.method === 'POST') {
+    const currency = body.currency === 'SBTC' ? 'SBTC' : 'EUR';
     const amount = Math.round((+body.amount || 0) * 100) / 100;
-    const price = Math.round((+body.pricePerToken || 0) * 10000) / 10000;
+    const price = currency === 'SBTC'
+      ? r8(+body.pricePerToken || 0)
+      : Math.round((+body.pricePerToken || 0) * 10000) / 10000;
     if (!(amount >= 1)) return json(res, 400, { error: 'Mindestmenge: 1 PST.' });
-    if (!(price >= 0.0001 && price <= 1000)) return json(res, 400, { error: 'Preis pro Token: 0,0001 € bis 1.000 €.' });
+    if (currency === 'EUR' && !(price >= 0.0001 && price <= 1000)) return json(res, 400, { error: 'Preis pro Token: 0,0001 € bis 1.000 €.' });
+    if (currency === 'SBTC' && !(price >= 1e-8 && price <= 1)) return json(res, 400, { error: 'Preis pro Token: 0,00000001 bis 1 sBTC.' });
     if ((me.tokens || 0) + 1e-9 < amount) return json(res, 400, { error: 'Nicht genug Token — du hast ' + (me.tokens || 0) + ' PST.' });
     me.tokens = round2(me.tokens - amount); // Treuhand: Token sind ab jetzt im Angebot gebunden
-    db.offers.push({ id: newId('off'), seller: key, amount: amount, pricePerToken: price, createdAt: new Date().toISOString() });
+    db.offers.push({ id: newId('off'), seller: key, amount: amount, pricePerToken: price, currency: currency, createdAt: new Date().toISOString() });
     saveDb();
     return json(res, 200, { me: mePayload(key) });
   }
@@ -442,22 +490,37 @@ function handleApi(req, res, pathname, body) {
     if (offer.seller === key) return json(res, 400, { error: 'Du kannst dein eigenes Angebot nicht kaufen.' });
     const amt = body.amount ? Math.round((+body.amount) * 100) / 100 : offer.amount;
     if (!(amt > 0) || amt - offer.amount > 1e-9) return json(res, 400, { error: 'Ungültige Menge (verfügbar: ' + offer.amount + ' PST).' });
-    const total = round2(amt * offer.pricePerToken);
-    if (total < 0.01) return json(res, 400, { error: 'Kaufbetrag zu klein (min. 0,01 €).' });
-    if (me.credits + 1e-9 < total) return json(res, 402, { error: 'Nicht genug Guthaben — Kauf kostet ' + total.toFixed(2).replace('.', ',') + ' €.' });
-
-    const fee = round2(total * TRADE_FEE);
-    const proceeds = round2(total - fee);
-    me.credits = round2(me.credits - total);
-    me.tokens = round2((me.tokens || 0) + amt);
+    const cur = offer.currency || 'EUR';
     const seller = db.users[offer.seller];
-    if (seller) {
-      seller.credits = round2(seller.credits + proceeds);
-      seller.burn = round2(seller.burn + fee); // Gebühr ist unwiderruflich weg -> zählt ins Commitment B
+
+    let total, fee, proceeds;
+    if (cur === 'SBTC') {
+      total = r8(amt * offer.pricePerToken);
+      if (total < 1e-8) return json(res, 400, { error: 'Kaufbetrag zu klein.' });
+      if ((me.sbtc || 0) + 1e-12 < total) return json(res, 402, { error: 'Nicht genug sBTC — Kauf kostet ' + total.toFixed(8) + ' sBTC.' });
+      fee = r8(total * TRADE_FEE);
+      proceeds = r8(total - fee);
+      me.sbtc = r8(me.sbtc - total);
+      if (seller) {
+        seller.sbtc = r8((seller.sbtc || 0) + proceeds);
+        seller.burn = round2(seller.burn + fee * SBTC_RATE); // Gebühr (EUR-Gegenwert) -> Commitment B
+      }
+    } else {
+      total = round2(amt * offer.pricePerToken);
+      if (total < 0.01) return json(res, 400, { error: 'Kaufbetrag zu klein (min. 0,01 €).' });
+      if (me.credits + 1e-9 < total) return json(res, 402, { error: 'Nicht genug Guthaben — Kauf kostet ' + total.toFixed(2).replace('.', ',') + ' €.' });
+      fee = round2(total * TRADE_FEE);
+      proceeds = round2(total - fee);
+      me.credits = round2(me.credits - total);
+      if (seller) {
+        seller.credits = round2(seller.credits + proceeds);
+        seller.burn = round2(seller.burn + fee); // Gebühr ist unwiderruflich weg -> zählt ins Commitment B
+      }
     }
+    me.tokens = round2((me.tokens || 0) + amt);
     offer.amount = round2(offer.amount - amt);
     if (offer.amount < 0.01) db.offers = db.offers.filter(o => o.id !== offer.id);
-    db.trades.push({ id: newId('tr'), buyer: key, seller: offer.seller, amount: amt, pricePerToken: offer.pricePerToken, total: total, at: new Date().toISOString() });
+    db.trades.push({ id: newId('tr'), buyer: key, seller: offer.seller, amount: amt, pricePerToken: offer.pricePerToken, currency: cur, total: total, at: new Date().toISOString() });
     if (db.trades.length > 500) db.trades = db.trades.slice(-500);
     stat(null, 0, key);
     saveDb();

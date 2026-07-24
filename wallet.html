@@ -42,6 +42,29 @@
     </div>
 
     <div class="chart-card">
+      <h3>Bitcoin (Demo) — sBTC verbrennen für Credits</h3>
+      <div class="hint">Simuliertes Bitcoin ohne echten Wert. Verbranntes sBTC geht unwiderruflich an die Dead-Address und wird zu EUR-Credits (Kurs: 1 sBTC = 100.000 €).</div>
+      <div class="stats" style="margin-bottom:14px">
+        <div class="stat">
+          <div class="v aqua" id="b-balance">—</div>
+          <div class="l">Dein sBTC-Guthaben</div>
+        </div>
+        <div class="stat">
+          <div class="v" id="b-faucet-v"><button class="btn small secondary" style="margin:0" id="btn-faucet" onclick="doFaucet()">0,0002 sBTC abholen</button></div>
+          <div class="l">Demo-Faucet — einmal täglich</div>
+        </div>
+        <div class="stat" style="grid-column: span 2">
+          <div class="burn-form">
+            <input type="number" id="burn-amount" min="0.00000001" step="0.0001" placeholder="Menge, z. B. 0,0001">
+            <button class="btn small" style="margin:0" onclick="doBurn()">Verbrennen → €</button>
+          </div>
+          <div class="l" style="margin-top:8px">Dead-Address: <span class="mono-addr">sbtc1qdead…burn</span></div>
+        </div>
+      </div>
+      <div class="msg" id="msg-btc"></div>
+    </div>
+
+    <div class="chart-card">
       <h3>Heutige Verteilung — läuft live</h3>
       <div class="hint">Um 00:00 UTC werden <span id="d-pool">5.000</span> PST nach Punktesystem verteilt (Engagement auf deinen Inhalten × Standing der Interagierenden)</div>
       <div class="stats" style="margin-bottom:0">
@@ -187,6 +210,7 @@ function renderWallet(w) {
   document.getElementById('w-yesterday').textContent = '+' + fmt(w.yesterday, 2) + ' PST';
   document.getElementById('w-credits').textContent = PS.fmtEur(rec.credits);
   document.getElementById('w-burn').textContent = PS.fmtEur(rec.burn);
+  document.getElementById('b-balance').textContent = PS.fmtBtc(rec.sbtc);
 
   // Startguthaben-Claim
   var claimBtn = document.getElementById('btn-claim');
@@ -252,6 +276,28 @@ function renderWallet(w) {
   }
 
   PS.renderNav('wallet');
+}
+
+function setBtcMsg(text, type) {
+  var el = document.getElementById('msg-btc');
+  el.className = 'msg' + (text ? ' ' + type : '');
+  el.textContent = text || '';
+}
+
+function doFaucet() {
+  PS.btcFaucet().then(function (me) {
+    document.getElementById('b-balance').textContent = PS.fmtBtc(me.sbtc);
+    setBtcMsg('0,0002 sBTC gutgeschrieben. ✓', 'ok');
+  }).catch(function (e) { setBtcMsg(e.message, 'error'); });
+}
+
+function doBurn() {
+  var amt = +document.getElementById('burn-amount').value || 0;
+  PS.btcBurn(amt).then(function (d) {
+    document.getElementById('burn-amount').value = '';
+    setBtcMsg(amt.toFixed(8).replace('.', ',') + ' sBTC an ' + d.deadAddress.slice(0, 14) + '… verbrannt → +' + PS.fmtEur(d.credited) + ' Credits. ✓', 'ok');
+    return refresh();
+  }).catch(function (e) { setBtcMsg(e.message, 'error'); });
 }
 
 function doClaim() {

@@ -32,10 +32,10 @@
       <div id="content" style="display:none">
 
         <div class="stats">
-          <div class="stat"><div class="v aqua" id="m-price">—</div><div class="l">Letzter Preis pro Token</div></div>
+          <div class="stat"><div class="v aqua" id="m-price">—</div><div class="l">Letzter Preis pro Token (€-Gegenwert)</div></div>
           <div class="stat"><div class="v" id="m-tokens">—</div><div class="l">Deine Token (frei)</div></div>
           <div class="stat"><div class="v" id="m-credits">—</div><div class="l">Deine EUR-Credits</div></div>
-          <div class="stat"><div class="v" id="m-offers">—</div><div class="l">Offene Angebote</div></div>
+          <div class="stat"><div class="v" id="m-sbtc">—</div><div class="l">Dein sBTC (Demo)</div></div>
         </div>
 
         <div class="chart-card">
@@ -45,8 +45,14 @@
             <label>Menge (PST)
               <input type="number" id="of-amount" min="1" step="1" placeholder="z. B. 100" oninput="updateTotal()">
             </label>
-            <label>Preis pro Token (€)
+            <label>Preis pro Token (<span id="cur-label">€</span>)
               <input type="number" id="of-price" min="0.0001" step="0.001" placeholder="z. B. 0,05" oninput="updateTotal()">
+            </label>
+            <label style="grid-column: 1 / -1">Währung
+              <div class="cur-toggle">
+                <button type="button" id="cur-eur" class="active" onclick="setCurrency('EUR')">EUR-Credits</button>
+                <button type="button" id="cur-sbtc" onclick="setCurrency('SBTC')">sBTC (Demo)</button>
+              </div>
             </label>
             <div class="of-total">Erlös: <b id="of-total">—</b> <span class="hint-inline" id="of-net"></span></div>
             <button class="btn small" onclick="createOffer()">Angebot einstellen</button>
@@ -84,21 +90,36 @@ function setMsg(id, text, type) {
 }
 
 var feePct = 4;
+var currency = 'EUR';
+
+function fmtCur(n, cur) { return cur === 'SBTC' ? PS.fmtBtc(n) : PS.fmtEur(n); }
+function fmtCurPrice(p, cur) { return cur === 'SBTC' ? p.toFixed(8).replace('.', ',') + ' sBTC' : fmtPrice(p); }
+
+function setCurrency(c) {
+  currency = c;
+  document.getElementById('cur-eur').classList.toggle('active', c === 'EUR');
+  document.getElementById('cur-sbtc').classList.toggle('active', c === 'SBTC');
+  document.getElementById('cur-label').textContent = c === 'SBTC' ? 'sBTC' : '€';
+  var priceInput = document.getElementById('of-price');
+  priceInput.step = c === 'SBTC' ? '0.0000001' : '0.001';
+  priceInput.placeholder = c === 'SBTC' ? 'z. B. 0,0000005' : 'z. B. 0,05';
+  updateTotal();
+}
 
 function updateTotal() {
   var a = +document.getElementById('of-amount').value || 0;
   var p = +document.getElementById('of-price').value || 0;
   var total = a * p;
-  document.getElementById('of-total').textContent = total > 0 ? PS.fmtEur(total) : '—';
+  document.getElementById('of-total').textContent = total > 0 ? fmtCur(total, currency) : '—';
   document.getElementById('of-net').textContent = total > 0
-    ? 'davon ' + PS.fmtEur(total * (1 - feePct / 100)) + ' für dich nach ' + feePct + ' % Gebühr'
+    ? 'davon ' + fmtCur(total * (1 - feePct / 100), currency) + ' für dich nach ' + feePct + ' % Gebühr'
     : '';
 }
 
 function createOffer() {
   var a = +document.getElementById('of-amount').value || 0;
   var p = +document.getElementById('of-price').value || 0;
-  PS.createOffer(a, p).then(function () {
+  PS.createOffer(a, p, currency).then(function () {
     document.getElementById('of-amount').value = '';
     document.getElementById('of-price').value = '';
     updateTotal();
@@ -138,7 +159,7 @@ function render(d) {
   document.getElementById('m-price').textContent = d.lastPrice ? fmtPrice(d.lastPrice) : '—';
   document.getElementById('m-tokens').textContent = fmt(me.tokens, 2) + ' PST';
   document.getElementById('m-credits').textContent = PS.fmtEur(me.credits);
-  document.getElementById('m-offers').textContent = fmt(d.offers.length);
+  document.getElementById('m-sbtc').textContent = PS.fmtBtc(me.sbtc);
 
   var host = document.getElementById('offers');
   if (!d.offers.length) {
@@ -152,8 +173,8 @@ function render(d) {
       return '<div class="friend-row">' +
         '<div class="avatar-sm">' + PS.avatarHtml(o.seller) + '</div>' +
         '<div class="who">' +
-          '<div class="name">' + fmt(o.amount, 0) + ' PST · ' + fmtPrice(o.pricePerToken) + '/PST' + (o.mine ? ' <span class="sub2">(dein Angebot)</span>' : '') + '</div>' +
-          '<div class="sub2">' + PS.escapeHtml(o.seller.name) + ' · gesamt ' + PS.fmtEur(o.total) + ' · ' + PS.timeAgo(o.createdAt) + '</div>' +
+          '<div class="name">' + fmt(o.amount, 0) + ' PST · ' + fmtCurPrice(o.pricePerToken, o.currency) + '/PST' + (o.mine ? ' <span class="sub2">(dein Angebot)</span>' : '') + '</div>' +
+          '<div class="sub2">' + PS.escapeHtml(o.seller.name) + ' · gesamt ' + fmtCur(o.total, o.currency) + ' · ' + PS.timeAgo(o.createdAt) + '</div>' +
         '</div>' +
         '<div class="actions">' + right + '</div></div>';
     }).join('');
@@ -164,8 +185,8 @@ function render(d) {
     th.innerHTML = d.trades.map(function (t) {
       return '<div class="friend-row">' +
         '<div class="who">' +
-          '<div class="name">' + fmt(t.amount, 0) + ' PST zu ' + fmtPrice(t.pricePerToken) + '/PST</div>' +
-          '<div class="sub2">' + PS.escapeHtml(t.buyer) + ' ← ' + PS.escapeHtml(t.seller) + ' · ' + PS.fmtEur(t.total) + ' · ' + PS.timeAgo(t.at) + '</div>' +
+          '<div class="name">' + fmt(t.amount, 0) + ' PST zu ' + fmtCurPrice(t.pricePerToken, t.currency) + '/PST</div>' +
+          '<div class="sub2">' + PS.escapeHtml(t.buyer) + ' ← ' + PS.escapeHtml(t.seller) + ' · ' + fmtCur(t.total, t.currency) + ' · ' + PS.timeAgo(t.at) + '</div>' +
         '</div></div>';
     }).join('');
   }
@@ -197,6 +218,12 @@ document.addEventListener('DOMContentLoaded', function () {
   .market-form .of-total b { color: var(--aqua); font-family: var(--font-mono); }
   .market-form .hint-inline { font-size: .78rem; }
   .market-form .btn { grid-column: 1 / -1; justify-self: start; }
+  .cur-toggle { display: flex; gap: 6px; margin-top: 6px; }
+  .cur-toggle button {
+    flex: 1; padding: 10px; border-radius: 8px; cursor: pointer; font-family: var(--font-body);
+    border: 1px solid var(--line); background: var(--bg-soft); color: var(--muted); font-size: .9rem;
+  }
+  .cur-toggle button.active { border-color: var(--aqua); color: var(--aqua); background: rgba(45,212,191,.08); }
   .buy-group { display: flex; gap: 8px; align-items: center; }
   .buy-group input { width: 90px; padding: 8px 10px; font-size: .9rem; }
   input[type=number] {

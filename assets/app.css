@@ -267,6 +267,16 @@ input:focus, textarea:focus { border-color: var(--aqua); }
 /* Burn-Anzeige */
 .burn-chip { color: var(--gold); font-weight: 600; }
 
+/* sBTC */
+.burn-form { display: flex; gap: 8px; align-items: center; }
+.burn-form input {
+  flex: 1; padding: 10px 12px; border-radius: 8px; min-width: 0;
+  border: 1px solid var(--line); background: var(--bg); color: var(--text);
+  font-size: .95rem; font-family: var(--font-mono); outline: none;
+}
+.burn-form input:focus { border-color: var(--aqua); }
+.mono-addr { font-family: var(--font-mono); color: var(--gold); font-size: .8rem; }
+
 /* Bilder im Feed */
 .post-img {
   display: block; max-width: 100%; height: auto; max-height: 420px;

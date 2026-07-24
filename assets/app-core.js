@@ -294,14 +294,25 @@ var PS = (function () {
     return Promise.resolve({ local: true, totals: {}, daily: [] });
   }
 
+  /* sBTC (Demo-Bitcoin) — nur im Live-Modus */
+  function fmtBtc(n) { return (n || 0).toFixed(8).replace('.', ',') + ' sBTC'; }
+  function btcFaucet() {
+    if (mode !== 'server') return Promise.reject(new Error('sBTC gibt es nur im Live-Modus.'));
+    return call('/api/btc/faucet', 'POST', {}).then(function (d) { cachedMe = d.me; return d.me; });
+  }
+  function btcBurn(amount) {
+    if (mode !== 'server') return Promise.reject(new Error('sBTC gibt es nur im Live-Modus.'));
+    return call('/api/btc/burn', 'POST', { amount: amount }).then(function (d) { cachedMe = d.me; return d; });
+  }
+
   /* Markt: Token-Handel zwischen Nutzern — nur im Live-Modus */
   function market() {
     if (mode !== 'server') return Promise.resolve({ local: true, offers: [], trades: [], lastPrice: null });
     return call('/api/market').then(function (d) { cachedMe = d.me; return d; });
   }
-  function createOffer(amount, pricePerToken) {
+  function createOffer(amount, pricePerToken, currency) {
     if (mode !== 'server') return Promise.reject(new Error('Der Markt ist nur im Live-Modus verfügbar.'));
-    return call('/api/market/offers', 'POST', { amount: amount, pricePerToken: pricePerToken }).then(function (d) { cachedMe = d.me; });
+    return call('/api/market/offers', 'POST', { amount: amount, pricePerToken: pricePerToken, currency: currency || 'EUR' }).then(function (d) { cachedMe = d.me; });
   }
   function cancelOffer(id) {
     if (mode !== 'server') return Promise.reject(new Error('Der Markt ist nur im Live-Modus verfügbar.'));
@@ -455,6 +466,7 @@ var PS = (function () {
     logout: logout, deleteAccount: deleteAccount, setAvatar: setAvatar,
     claimStart: claimStart, wallet: wallet, stats: stats,
     market: market, createOffer: createOffer, cancelOffer: cancelOffer, buyOffer: buyOffer,
+    btcFaucet: btcFaucet, btcBurn: btcBurn, fmtBtc: fmtBtc,
     friends: friends, searchUsers: searchUsers, requestFriend: requestFriend,
     acceptFriend: acceptFriend, declineFriend: declineFriend, unfriend: unfriend,
     chat: chat, sendMessage: sendMessage,
