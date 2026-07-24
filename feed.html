@@ -55,9 +55,44 @@ function setMsg(text, type) {
   el.textContent = text || '';
 }
 
+var social = { friends: {}, out: {}, incoming: {} };
+
+function loadSocial() {
+  return PS.friends().then(function (d) {
+    if (d.local) return;
+    social = { friends: {}, out: {}, incoming: {} };
+    d.friends.forEach(function (u) { social.friends[u.key] = 1; });
+    d.requestsOut.forEach(function (u) { social.out[u.key] = 1; });
+    d.requestsIn.forEach(function (u) { social.incoming[u.key] = 1; });
+  }).catch(function () {});
+}
+
+function friendButton(authorKey) {
+  var me = PS.me();
+  if (PS.getMode() !== 'server' || !me || authorKey === me.key) return '';
+  if (social.friends[authorKey]) return '<a class="pill-btn" href="chat.html?u=' + authorKey + '" title="Ihr seid befreundet — zum Chat">💬</a>';
+  if (social.out[authorKey]) return '<span class="pill-btn" style="opacity:.55" title="Anfrage gesendet">✓</span>';
+  if (social.incoming[authorKey]) return '<button class="pill-btn primary" onclick="acceptFromFeed(\'' + authorKey + '\')" title="Freundschaftsanfrage annehmen">Annehmen</button>';
+  return '<button class="pill-btn" onclick="addFriendFromFeed(\'' + authorKey + '\')" title="Freundschaft anfragen">＋ Freund</button>';
+}
+
+function addFriendFromFeed(k) {
+  PS.requestFriend(k).then(function (d) {
+    setMsg(d.becameFriends ? 'Ihr seid jetzt befreundet! 🎉' : 'Freundschaftsanfrage gesendet. ✓', 'ok');
+    return refresh();
+  }).catch(function (e) { setMsg(e.message, 'error'); });
+}
+
+function acceptFromFeed(k) {
+  PS.acceptFriend(k).then(function () {
+    setMsg('Ihr seid jetzt befreundet! 🎉', 'ok');
+    return refresh();
+  }).catch(function (e) { setMsg(e.message, 'error'); });
+}
+
 function refresh() {
   PS.renderNav('feed');
-  return PS.posts().then(renderPosts).catch(function (e) {
+  return loadSocial().then(PS.posts).then(renderPosts).catch(function (e) {
     document.getElementById('posts').innerHTML = '<div class="feed-empty">Feed konnte nicht geladen werden: ' + PS.escapeHtml(e.message) + '</div>';
   });
 }
@@ -152,6 +187,7 @@ function renderPosts(posts) {
           '<div class="name">' + PS.escapeHtml(p.author.name) + '</div>' +
           '<div class="when">' + PS.timeAgo(p.createdAt) + '</div>' +
         '</div>' +
+        friendButton(p.authorKey) +
       '</div>' +
       '<div class="post-text">' + PS.escapeHtml(p.text) + '</div>' +
       '<div class="post-actions">' +
