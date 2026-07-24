@@ -1,0 +1,8 @@
+{
+  "_anleitung": "Diese Datei nach data/mail-config.json kopieren und ausfuellen. Fuer Gmail: Google-Konto -> Sicherheit -> 2-Faktor aktivieren -> App-Passwoerter -> neues App-Passwort erzeugen und hier als 'pass' eintragen. Ohne diese Datei werden Reset-Codes in die Server-Konsole geschrieben.",
+  "host": "smtp.gmail.com",
+  "port": 465,
+  "user": "deine-adresse@gmail.com",
+  "pass": "hier-das-app-passwort",
+  "from": "PoolSite <deine-adresse@gmail.com>"
+}

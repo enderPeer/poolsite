@@ -294,6 +294,16 @@ var PS = (function () {
     return Promise.resolve({ local: true, totals: {}, daily: [] });
   }
 
+  /* Passwort zurücksetzen — nur im Live-Modus (braucht E-Mail-Versand) */
+  function resetRequest(username, email) {
+    if (mode !== 'server') return Promise.reject(new Error('Passwort-Reset gibt es nur im Live-Modus.'));
+    return call('/api/reset/request', 'POST', { username: username, email: email });
+  }
+  function resetConfirm(username, code, password) {
+    if (mode !== 'server') return Promise.reject(new Error('Passwort-Reset gibt es nur im Live-Modus.'));
+    return call('/api/reset/confirm', 'POST', { username: username, code: code, password: password });
+  }
+
   /* Einstellungen */
   function updateSettings(payload) {
     if (mode === 'server') {
@@ -567,6 +577,7 @@ var PS = (function () {
     claimStart: claimStart, wallet: wallet, stats: stats,
     invites: invites, createInvite: createInvite,
     updateSettings: updateSettings, startTour: startTour, tourDone: tourDone,
+    resetRequest: resetRequest, resetConfirm: resetConfirm,
     market: market, createOffer: createOffer, cancelOffer: cancelOffer, buyOffer: buyOffer,
     btcFaucet: btcFaucet, btcBurn: btcBurn, fmtBtc: fmtBtc,
     friends: friends, searchUsers: searchUsers, requestFriend: requestFriend,

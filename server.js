@@ -6,6 +6,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const tls = require('tls');
 
 const ROOT = __dirname;
 const DATA_DIR = path.join(ROOT, 'data');
@@ -151,6 +152,85 @@ function newUserRecord(name, passHash, email, guest) {
   };
 }
 
+/* ---------- E-Mail-Versand (minimaler SMTP-Client, TLS + AUTH LOGIN) ----------
+   Konfiguration: data/mail-config.json, z. B.
+   { "host": "smtp.gmail.com", "port": 465, "user": "adresse@gmail.com",
+     "pass": "app-passwort", "from": "PoolSite <adresse@gmail.com>" }
+   Ohne Konfiguration werden Reset-Codes in die Server-Konsole geschrieben. */
+const MAIL_CONFIG_FILE = path.join(DATA_DIR, 'mail-config.json');
+function mailConfig() {
+  try {
+    const c = JSON.parse(fs.readFileSync(MAIL_CONFIG_FILE, 'utf8'));
+    if (c.host && c.user && c.pass) return c;
+  } catch (e) {}
+  return null;
+}
+
+function sendMail(cfg, to, subject, text) {
+  return new Promise((resolve, reject) => {
+    const sock = tls.connect(cfg.port || 465, cfg.host, { servername: cfg.host });
+    const fromAddr = cfg.user;
+    const fromHeader = cfg.from || ('PoolSite <' + fromAddr + '>');
+    let buf = '';
+    let done = false;
+    const timer = setTimeout(() => fail(new Error('SMTP-Timeout')), 20000);
+
+    function fail(err) {
+      if (done) return;
+      done = true; clearTimeout(timer);
+      try { sock.destroy(); } catch (e) {}
+      reject(err);
+    }
+    function ok() {
+      if (done) return;
+      done = true; clearTimeout(timer);
+      try { sock.end(); } catch (e) {}
+      resolve();
+    }
+
+    const message =
+      'From: ' + fromHeader + '\r\n' +
+      'To: <' + to + '>\r\n' +
+      'Subject: =?UTF-8?B?' + Buffer.from(subject).toString('base64') + '?=\r\n' +
+      'MIME-Version: 1.0\r\n' +
+      'Content-Type: text/plain; charset=utf-8\r\n' +
+      'Content-Transfer-Encoding: base64\r\n' +
+      '\r\n' +
+      Buffer.from(text).toString('base64').replace(/(.{76})/g, '$1\r\n') +
+      '\r\n.';
+
+    const steps = [
+      { expect: 220, send: 'EHLO poolsite.local' },
+      { expect: 250, send: 'AUTH LOGIN' },
+      { expect: 334, send: Buffer.from(cfg.user).toString('base64') },
+      { expect: 334, send: Buffer.from(cfg.pass).toString('base64') },
+      { expect: 235, send: 'MAIL FROM:<' + fromAddr + '>' },
+      { expect: 250, send: 'RCPT TO:<' + to + '>' },
+      { expect: 250, send: 'DATA' },
+      { expect: 354, send: message },
+      { expect: 250, send: 'QUIT', thenOk: true }
+    ];
+    let idx = 0;
+
+    sock.on('data', chunk => {
+      buf += chunk.toString('utf8');
+      // vollständige Antwort: letzte Zeile hat "NNN " (Leerzeichen, nicht Bindestrich)
+      const lines = buf.split('\r\n').filter(Boolean);
+      const last = lines[lines.length - 1] || '';
+      if (!/^\d{3} /.test(last)) return;
+      const code = parseInt(last.slice(0, 3), 10);
+      buf = '';
+      const step = steps[idx];
+      if (!step) return ok();
+      if (code !== step.expect) return fail(new Error('SMTP-Fehler (' + code + '): ' + last.slice(4, 120)));
+      sock.write(step.send + '\r\n');
+      if (step.thenOk) return ok();
+      idx += 1;
+    });
+    sock.on('error', fail);
+  });
+}
+
 function findOpenInvite(code) {
   const inv = db.invites[String(code || '').trim()];
   if (!inv || inv.seatsUsed >= inv.seatsTotal || !db.users[inv.owner]) return null;
@@ -287,6 +367,53 @@ function handleApi(req, res, pathname, body) {
     stat('logins', 1, k);
     saveDb();
     return json(res, 200, { token: token, me: mePayload(k) });
+  }
+
+  /* ---------- Passwort zurücksetzen (nur mit hinterlegter E-Mail) ---------- */
+  if (pathname === '/api/reset/request' && req.method === 'POST') {
+    const k = String(body.username || '').trim().toLowerCase();
+    const em = String(body.email || '').trim().toLowerCase();
+    const u = db.users[k];
+    const generic = { ok: true, message: 'Falls Nutzername und E-Mail zusammenpassen, wurde ein Code verschickt (15 Minuten gültig).' };
+    if (!u || u.guest || !u.email || u.email.toLowerCase() !== em) return json(res, 200, generic);
+    if (u.reset && Date.now() - (u.reset.requestedAt || 0) < 2 * 60 * 1000) {
+      return json(res, 429, { error: 'Bitte warte 2 Minuten, bevor du einen neuen Code anforderst.' });
+    }
+    const code = String(crypto.randomInt(100000, 1000000));
+    u.reset = { codeHash: sha(k + ':' + code), exp: Date.now() + 15 * 60 * 1000, tries: 0, requestedAt: Date.now() };
+    saveDb();
+    const cfg = mailConfig();
+    const mailText = 'Hallo ' + u.name + ',\n\n' +
+      'dein PoolSite-Code zum Zurücksetzen des Passworts lautet:\n\n    ' + code + '\n\n' +
+      'Der Code ist 15 Minuten gültig. Wenn du das nicht angefordert hast, ignoriere diese E-Mail.\n\n— PoolSite';
+    if (cfg) {
+      sendMail(cfg, u.email, 'PoolSite: Passwort zurücksetzen', mailText)
+        .then(() => console.log('[mail] Reset-Code an ' + u.email + ' gesendet'))
+        .catch(err => console.error('[mail] Versand fehlgeschlagen (' + err.message + ') — Code für ' + k + ': ' + code));
+    } else {
+      console.log('[mail] Kein Mail-Server konfiguriert (data/mail-config.json). Reset-Code für ' + k + ': ' + code);
+    }
+    return json(res, 200, generic);
+  }
+
+  if (pathname === '/api/reset/confirm' && req.method === 'POST') {
+    const k = String(body.username || '').trim().toLowerCase();
+    const code = String(body.code || '').trim();
+    const pass = String(body.password || '');
+    const u = db.users[k];
+    if (!u || !u.reset) return json(res, 400, { error: 'Kein offener Reset-Vorgang — fordere zuerst einen Code an.' });
+    if (Date.now() > u.reset.exp) { delete u.reset; saveDb(); return json(res, 400, { error: 'Der Code ist abgelaufen — fordere einen neuen an.' }); }
+    if (u.reset.tries >= 5) { delete u.reset; saveDb(); return json(res, 400, { error: 'Zu viele Fehlversuche — fordere einen neuen Code an.' }); }
+    if (u.reset.codeHash !== sha(k + ':' + code)) {
+      u.reset.tries += 1; saveDb();
+      return json(res, 403, { error: 'Falscher Code (' + (5 - u.reset.tries) + ' Versuche übrig).' });
+    }
+    if (pass.length < 4) return json(res, 400, { error: 'Das neue Passwort muss mindestens 4 Zeichen haben.' });
+    u.passHash = sha(k + ':' + pass);
+    delete u.reset;
+    for (const t of Object.keys(db.sessions)) if (db.sessions[t] === k) delete db.sessions[t]; // alte Sitzungen beenden
+    saveDb();
+    return json(res, 200, { ok: true, message: 'Passwort geändert — du kannst dich jetzt anmelden.' });
   }
 
   if (pathname === '/api/guest' && req.method === 'POST') {
