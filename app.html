@@ -40,6 +40,10 @@
     </form>
 
     <form id="form-register" style="display:none" onsubmit="return doRegister(event)">
+      <label for="rg-invite">Einladungscode</label>
+      <input type="text" id="rg-invite" required maxlength="16" placeholder="z. B. 3f9a1c2b">
+      <div class="hint">PoolSite ist einladungsbasiert: Registrieren geht nur mit dem Code eines Mitglieds. Eingeladene Konten starten mit 10 € Guthaben; 10 % ihrer verdienten Token gehen an die einladende Person.</div>
+
       <label for="rg-user">Nutzername</label>
       <input type="text" id="rg-user" autocomplete="username" required maxlength="30">
       <div class="hint">2–30 Zeichen. Beginnt mit Buchstabe/Zahl; erlaubt sind Buchstaben, Zahlen, Punkt, Unterstrich.</div>
@@ -82,6 +86,9 @@
       <h3>Gastmodus aktiv</h3>
       <p>Du bist als Gast unterwegs. Wandle deinen Zugang in ein echtes Konto um, indem du einen Nutzernamen und ein Passwort festlegst — dein Profilbild und deine Beiträge bleiben erhalten.</p>
       <form onsubmit="return doUpgrade(event)">
+        <label for="ug-invite">Einladungscode</label>
+        <input type="text" id="ug-invite" required maxlength="16" placeholder="z. B. 3f9a1c2b">
+        <div class="hint">Auch die Umwandlung braucht eine Einladung — dafür gibt es 10 € Startguthaben.</div>
         <label for="ug-user">Nutzername</label>
         <input type="text" id="ug-user" required maxlength="30">
         <label for="ug-pass">Passwort</label>
@@ -105,6 +112,19 @@
       <div class="info-row"><span class="k">Stable-Guthaben (EUR)</span><span class="v" id="pf-credits">—</span></div>
       <div class="info-row"><span class="k">Burn (Commitment B)</span><span class="v burn-chip" id="pf-burn">—</span></div>
       <div class="info-row"><span class="k">Token-Guthaben</span><span class="v" id="pf-tokens">—</span></div>
+    </div>
+
+    <!-- Einladungen -->
+    <div class="chart-card" id="invite-card" style="display:none; margin-top:24px; padding:20px">
+      <h3>Einladungen</h3>
+      <div class="hint">Registrieren geht nur per Einladung. Du erhältst 10 % der Token, die deine Eingeladenen verdienen. Preis: <span id="inv-price">2,00 €</span> pro Platz (zählt als Burn).</div>
+      <div class="comment-form" style="margin-top:12px">
+        <input type="number" id="inv-seats" min="1" max="100" step="1" value="1" style="max-width:110px" oninput="updateInvCost()">
+        <button onclick="buyInvite()" id="inv-buy-btn">Link kaufen (2,00 €)</button>
+      </div>
+      <div id="invite-list" style="margin-top:12px"></div>
+      <div id="invitee-list" style="margin-top:4px"></div>
+      <div class="msg" id="msg-invite"></div>
     </div>
 
     <div class="msg" id="msg-profile"></div>
@@ -135,7 +155,8 @@ function doRegister(ev) {
   PS.register(
     document.getElementById('rg-user').value.trim(),
     document.getElementById('rg-pass').value,
-    document.getElementById('rg-email').value.trim()
+    document.getElementById('rg-email').value.trim(),
+    document.getElementById('rg-invite').value.trim()
   ).then(render).catch(function (e) { setMsg('msg-register', e.message, 'error'); });
   return false;
 }
@@ -158,7 +179,8 @@ function doUpgrade(ev) {
   PS.upgrade(
     document.getElementById('ug-user').value.trim(),
     document.getElementById('ug-pass').value,
-    document.getElementById('ug-email').value.trim()
+    document.getElementById('ug-email').value.trim(),
+    document.getElementById('ug-invite').value.trim()
   ).then(function (me) {
     render();
     setMsg('msg-profile', 'Willkommen, ' + me.name + '! Dein Konto ist jetzt aktiv. ✓', 'ok');
@@ -167,6 +189,64 @@ function doUpgrade(ev) {
 }
 
 function doLogout() { PS.logout().then(render); }
+
+/* Einladungen */
+var seatPrice = 2;
+
+function updateInvCost() {
+  var n = Math.max(1, Math.floor(+document.getElementById('inv-seats').value || 1));
+  document.getElementById('inv-buy-btn').textContent = 'Link kaufen (' + PS.fmtEur(n * seatPrice) + ')';
+}
+
+function inviteLink(code) {
+  return location.origin + location.pathname.replace(/[^/]*$/, '') + 'app.html?invite=' + code;
+}
+
+function copyInvite(code) {
+  var link = inviteLink(code);
+  (navigator.clipboard ? navigator.clipboard.writeText(link) : Promise.reject()).then(function () {
+    setMsg('msg-invite', 'Link kopiert: ' + link, 'ok');
+  }).catch(function () {
+    setMsg('msg-invite', 'Link: ' + link, 'ok');
+  });
+}
+
+function buyInvite() {
+  var n = Math.floor(+document.getElementById('inv-seats').value || 0);
+  PS.createInvite(n).then(function (d) {
+    setMsg('msg-invite', 'Einladung erstellt — Code: ' + d.code + '. Link ist unten kopierbar.', 'ok');
+    render();
+  }).catch(function (e) { setMsg('msg-invite', e.message, 'error'); });
+}
+
+function renderInvites() {
+  if (PS.getMode() !== 'server' || !PS.me() || PS.me().guest) {
+    document.getElementById('invite-card').style.display = 'none';
+    return;
+  }
+  document.getElementById('invite-card').style.display = '';
+  PS.invites().then(function (d) {
+    seatPrice = d.seatPrice;
+    document.getElementById('inv-price').textContent = PS.fmtEur(d.seatPrice);
+    updateInvCost();
+    var host = document.getElementById('invite-list');
+    host.innerHTML = d.invites.length
+      ? d.invites.map(function (i) {
+          var free = i.seatsTotal - i.seatsUsed;
+          return '<div class="friend-row">' +
+            '<div class="who"><div class="name" style="font-family:var(--font-mono)">' + i.code + '</div>' +
+            '<div class="sub2">' + i.seatsUsed + ' / ' + i.seatsTotal + ' Plätze genutzt' + (free ? '' : ' — voll') + '</div></div>' +
+            '<div class="actions"><button class="pill-btn" onclick="copyInvite(\'' + i.code + '\')">Link kopieren</button></div></div>';
+        }).join('')
+      : '<div class="hint">Noch keine Einladungslinks.</div>';
+    var ih = document.getElementById('invitee-list');
+    ih.innerHTML = d.invitees.length
+      ? '<div class="hint" style="margin-top:10px">Von dir eingeladen: ' + d.invitees.map(function (v) {
+          return PS.escapeHtml(v.name) + ' (' + (v.contributed || 0).toLocaleString('de-DE') + ' PST erhalten)';
+        }).join(' · ') + '</div>'
+      : '';
+  }).catch(function () {});
+}
 
 function doDelete() {
   if (!confirm('Konto wirklich endgültig löschen?')) return;
@@ -226,10 +306,22 @@ function render() {
   document.getElementById('pf-tokens').textContent = (rec.tokens || 0).toLocaleString('de-DE', { maximumFractionDigits: 2 }) + ' PST';
   document.getElementById('btn-delete').textContent = guest ? 'Gast-Daten löschen' : 'Konto löschen';
   document.getElementById('avatar').innerHTML = PS.avatarHtml(rec);
+  renderInvites();
 }
 
 document.addEventListener('DOMContentLoaded', function () {
-  PS.init().then(render);
+  PS.init().then(function () {
+    // Einladungscode aus dem Link vorbefüllen (?invite=CODE) und Registrieren-Tab öffnen
+    try {
+      var code = new URLSearchParams(location.search).get('invite');
+      if (code) {
+        document.getElementById('rg-invite').value = code;
+        document.getElementById('ug-invite').value = code;
+        showTab('register');
+      }
+    } catch (e) {}
+    render();
+  });
 });
 </script>
 

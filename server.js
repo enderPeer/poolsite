@@ -31,6 +31,8 @@ const DAILY_TOKENS = 5000;          // Jahr-1-Emission pro Tag
 const NU = 0.10, RHO = 0.2;         // Numéraire & Gate-Schwelle (veröffentlichte Konstante)
 const W_TYPE = { like: 1.0, dislike: 0.3, comment: 1.2 };
 const LAMBDA_DIM = 0.3;             // abnehmende Ertraege pro Actor->Creator-Paar
+const REFERRAL_RATE = 0.10;        // 10 % der Token einer eingeladenen Person gehen an den Einladenden (abgezogen)
+const INVITE_SEAT_PRICE = 2.00;    // EUR-Credits pro Einladungsplatz
 
 /* ---------- Datenbank ---------- */
 let db = { users: {}, posts: [], sessions: {}, events: [], meta: null };
@@ -43,6 +45,7 @@ function loadDb() {
   db.messages = db.messages || [];
   db.offers = db.offers || [];
   db.trades = db.trades || [];
+  db.invites = db.invites || {};   // code -> { owner, seatsTotal, seatsUsed, createdAt }
   if (!db.meta) db.meta = { lastDay: dayStr(Date.now() - 86400000), carryover: 0, totalDistributed: 0 };
 }
 
@@ -97,7 +100,8 @@ function mePayload(key) {
     createdAt: u.createdAt, avatar: u.avatar || null, guest: !!u.guest,
     credits: u.credits, burn: u.burn, actions: u.actions,
     tokens: u.tokens || 0, startClaimed: !!u.startClaimed,
-    sbtc: u.sbtc || 0
+    sbtc: u.sbtc || 0,
+    referredBy: u.referredBy || null, referralEarned: u.referralEarned || 0
   };
 }
 
@@ -142,13 +146,26 @@ function newUserRecord(name, passHash, email, guest) {
     createdAt: new Date().toISOString(), avatar: null, guest: !!guest,
     credits: 0, burn: 0, actions: 0,
     tokens: 0, startClaimed: false, tokenHistory: [],
-    sbtc: 0, lastFaucet: null
+    sbtc: 0, lastFaucet: null,
+    referredBy: null, referralEarned: 0, referralContributed: 0
   };
+}
+
+function findOpenInvite(code) {
+  const inv = db.invites[String(code || '').trim()];
+  if (!inv || inv.seatsUsed >= inv.seatsTotal || !db.users[inv.owner]) return null;
+  return inv;
 }
 
 /* ---------- Standing & tägliche Token-Verteilung ---------- */
 function alphaHat(u) { return (u.burn / Math.max(u.actions, 1)) / NU; }
 function lam(x) { return x / (1 + x); }
+function addHistory(u, day, amount) {
+  u.tokenHistory = u.tokenHistory || [];
+  const e = u.tokenHistory.find(h => h.day === day);
+  if (e) e.amount = Math.round((e.amount + amount) * 100) / 100;
+  else u.tokenHistory.push({ day: day, amount: amount });
+}
 
 function logEvent(type, actorKey, creatorKey) {
   if (actorKey === creatorKey) return; // Selbst-Engagement zählt nicht
@@ -188,9 +205,21 @@ function distribute() {
         const u = db.users[k];
         if (!u) continue;
         const amt = Math.round(pool * weights[k] / total * 100) / 100;
-        u.tokens = Math.round(((u.tokens || 0) + amt) * 100) / 100;
-        u.tokenHistory = u.tokenHistory || [];
-        u.tokenHistory.push({ day: next, amount: amt });
+        let net = amt;
+        // Referral: 10 % gehen an die Person, die diesen Nutzer eingeladen hat
+        const ref = u.referredBy ? db.users[u.referredBy] : null;
+        if (ref) {
+          const cut = Math.round(amt * REFERRAL_RATE * 100) / 100;
+          if (cut > 0) {
+            net = Math.round((amt - cut) * 100) / 100;
+            ref.tokens = Math.round(((ref.tokens || 0) + cut) * 100) / 100;
+            ref.referralEarned = Math.round(((ref.referralEarned || 0) + cut) * 100) / 100;
+            addHistory(ref, next, cut);
+            u.referralContributed = Math.round(((u.referralContributed || 0) + cut) * 100) / 100;
+          }
+        }
+        u.tokens = Math.round(((u.tokens || 0) + net) * 100) / 100;
+        addHistory(u, next, net);
       }
       db.meta.totalDistributed = Math.round((db.meta.totalDistributed + pool) * 100) / 100;
       db.meta.carryover = 0;
@@ -225,7 +254,20 @@ function handleApi(req, res, pathname, body) {
     if (pass.length < 4) return json(res, 400, { error: 'Das Passwort muss mindestens 4 Zeichen haben.' });
     const k = name.toLowerCase();
     if (db.users[k]) return json(res, 409, { error: 'Dieser Nutzername ist bereits vergeben.' });
-    db.users[k] = newUserRecord(name, sha(k + ':' + pass), email, false);
+
+    // Registrierung nur per Einladung (Ausnahme: allererstes Konto im Netzwerk)
+    const realUsers = Object.keys(db.users).filter(x => !db.users[x].guest).length;
+    let inv = null;
+    if (realUsers > 0) {
+      inv = findOpenInvite(body.inviteCode);
+      if (!inv) return json(res, 403, { error: 'Registrierung nur mit gültigem Einladungscode möglich. Frag ein Mitglied nach einer Einladung.' });
+    }
+
+    const rec = newUserRecord(name, sha(k + ':' + pass), email, false);
+    rec.credits = START_CREDITS;      // 10 € Startguthaben für eingeladene Konten
+    rec.startClaimed = true;
+    if (inv) { rec.referredBy = inv.owner; inv.seatsUsed += 1; }
+    db.users[k] = rec;
     const token = newId('tok');
     db.sessions[token] = k;
     stat('regs', 1, k);
@@ -325,10 +367,12 @@ function handleApi(req, res, pathname, body) {
     db.friendRequests = db.friendRequests.filter(r => r.from !== key && r.to !== key);
     db.messages = db.messages.filter(m => m.from !== key && m.to !== key);
     db.offers = db.offers.filter(o => o.seller !== key);
+    for (const c of Object.keys(db.invites)) if (db.invites[c].owner === key) delete db.invites[c];
     for (const k of Object.keys(db.users)) {
       const u = db.users[k];
       if (u.friends) u.friends = u.friends.filter(f => f !== key);
       if (u.lastRead) delete u.lastRead[key];
+      if (u.referredBy === key) u.referredBy = null; // Einladender weg -> Eingeladene behalten kuenftig 100 %
     }
     saveDb();
     return json(res, 200, { ok: true });
@@ -343,10 +387,24 @@ function handleApi(req, res, pathname, body) {
     if (pass.length < 4) return json(res, 400, { error: 'Das Passwort muss mindestens 4 Zeichen haben.' });
     const nk = name.toLowerCase();
     if (db.users[nk]) return json(res, 409, { error: 'Dieser Nutzername ist bereits vergeben.' });
+
+    // Auch die Umwandlung eines Gast-Kontos braucht eine Einladung
+    const realUsers = Object.keys(db.users).filter(x => !db.users[x].guest).length;
+    let inv = null;
+    if (realUsers > 0) {
+      inv = findOpenInvite(body.inviteCode);
+      if (!inv) return json(res, 403, { error: 'Ein echtes Konto braucht einen gültigen Einladungscode. Frag ein Mitglied nach einer Einladung.' });
+    }
+
     db.users[nk] = Object.assign({}, me, {
       name: name, passHash: sha(nk + ':' + pass), email: email || null,
       notifyConsent: !!email, guest: false
     });
+    if (!db.users[nk].startClaimed) {
+      db.users[nk].credits = round2((db.users[nk].credits || 0) + START_CREDITS);
+      db.users[nk].startClaimed = true;
+    }
+    if (inv) { db.users[nk].referredBy = inv.owner; inv.seatsUsed += 1; }
     delete db.users[key];
     db.posts.forEach(p => {
       if (p.author === key) p.author = nk;
@@ -359,6 +417,8 @@ function handleApi(req, res, pathname, body) {
     db.messages.forEach(m => { if (m.from === key) m.from = nk; if (m.to === key) m.to = nk; });
     db.offers.forEach(o => { if (o.seller === key) o.seller = nk; });
     db.trades.forEach(t => { if (t.buyer === key) t.buyer = nk; if (t.seller === key) t.seller = nk; });
+    for (const c of Object.keys(db.invites)) if (db.invites[c].owner === key) db.invites[c].owner = nk;
+    for (const k2 of Object.keys(db.users)) if (db.users[k2].referredBy === key) db.users[k2].referredBy = nk;
     for (const k of Object.keys(db.users)) {
       const u = db.users[k];
       if (u.friends) u.friends = u.friends.map(f => f === key ? nk : f);
@@ -378,12 +438,31 @@ function handleApi(req, res, pathname, body) {
     return json(res, 200, { me: mePayload(key) });
   }
 
-  if (pathname === '/api/claim-start' && req.method === 'POST') {
-    if (me.startClaimed) return json(res, 400, { error: 'Du hast dein Startguthaben bereits abgeholt.' });
-    me.startClaimed = true;
-    me.credits = round2(me.credits + START_CREDITS);
+  /* ---------- Einladungen ---------- */
+  if (pathname === '/api/invites' && req.method === 'GET') {
+    const mine = Object.keys(db.invites)
+      .filter(c => db.invites[c].owner === key)
+      .map(c => ({ code: c, seatsTotal: db.invites[c].seatsTotal, seatsUsed: db.invites[c].seatsUsed, createdAt: db.invites[c].createdAt }));
+    const invitees = Object.keys(db.users)
+      .filter(k2 => db.users[k2].referredBy === key)
+      .map(k2 => ({ name: db.users[k2].name, contributed: db.users[k2].referralContributed || 0 }));
+    return json(res, 200, { invites: mine, invitees: invitees, seatPrice: INVITE_SEAT_PRICE, referralPct: REFERRAL_RATE * 100 });
+  }
+
+  if (pathname === '/api/invites' && req.method === 'POST') {
+    if (me.guest) return json(res, 403, { error: 'Nur volle Konten können Einladungen erstellen.' });
+    const seats = Math.floor(+body.seats || 0);
+    if (!(seats >= 1 && seats <= 100)) return json(res, 400, { error: 'Plätze: 1 bis 100.' });
+    const cost = round2(seats * INVITE_SEAT_PRICE);
+    if (me.credits + 1e-9 < cost) return json(res, 402, { error: 'Nicht genug Guthaben — ' + seats + ' Plätze kosten ' + cost.toFixed(2).replace('.', ',') + ' €.' });
+    me.credits = round2(me.credits - cost);
+    me.burn = round2(me.burn + cost);   // bezahlte Einladungen sind irreversibler Einsatz -> Commitment B
+    me.actions += 1;
+    const code = crypto.randomBytes(4).toString('hex');
+    db.invites[code] = { owner: key, seatsTotal: seats, seatsUsed: 0, createdAt: new Date().toISOString() };
+    stat(null, 0, key);
     saveDb();
-    return json(res, 200, { me: mePayload(key) });
+    return json(res, 200, { code: code, me: mePayload(key) });
   }
 
   if (pathname === '/api/wallet' && req.method === 'GET') {

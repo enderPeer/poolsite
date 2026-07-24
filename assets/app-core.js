@@ -150,9 +150,9 @@ var PS = (function () {
       .catch(function () { cachedMe = null; localStorage.removeItem(TOKEN_KEY); return null; });
   }
 
-  function register(name, pass, email) {
+  function register(name, pass, email, inviteCode) {
     if (mode === 'server') {
-      return call('/api/register', 'POST', { username: name, password: pass, email: email }).then(function (d) {
+      return call('/api/register', 'POST', { username: name, password: pass, email: email, inviteCode: inviteCode }).then(function (d) {
         localStorage.setItem(TOKEN_KEY, d.token); cachedMe = d.me; return d.me;
       });
     }
@@ -161,7 +161,7 @@ var PS = (function () {
     var k = name.toLowerCase();
     return hashStr(k + ':' + pass).then(function (ph) {
       var users = lUsers();
-      users[k] = { name: name, passHash: ph, email: email || null, notifyConsent: !!email, createdAt: new Date().toISOString(), avatar: null, credits: 0, burn: 0, actions: 0, tokens: 0, startClaimed: false };
+      users[k] = { name: name, passHash: ph, email: email || null, notifyConsent: !!email, createdAt: new Date().toISOString(), avatar: null, credits: START_CREDITS, burn: 0, actions: 0, tokens: 0, startClaimed: true };
       lSaveUsers(users);
       localStorage.setItem(SESSION_KEY, k);
       cachedMe = lMe(); return cachedMe;
@@ -198,9 +198,9 @@ var PS = (function () {
     cachedMe = lMe(); return Promise.resolve(cachedMe);
   }
 
-  function upgrade(name, pass, email) {
+  function upgrade(name, pass, email, inviteCode) {
     if (mode === 'server') {
-      return call('/api/upgrade', 'POST', { username: name, password: pass, email: email }).then(function (d) {
+      return call('/api/upgrade', 'POST', { username: name, password: pass, email: email, inviteCode: inviteCode }).then(function (d) {
         cachedMe = d.me; return d.me;
       });
     }
@@ -292,6 +292,16 @@ var PS = (function () {
       return call('/api/stats');
     }
     return Promise.resolve({ local: true, totals: {}, daily: [] });
+  }
+
+  /* Einladungen — nur im Live-Modus */
+  function invites() {
+    if (mode !== 'server') return Promise.resolve({ local: true, invites: [], invitees: [], seatPrice: 2, referralPct: 10 });
+    return call('/api/invites');
+  }
+  function createInvite(seats) {
+    if (mode !== 'server') return Promise.reject(new Error('Einladungen gibt es nur im Live-Modus.'));
+    return call('/api/invites', 'POST', { seats: seats }).then(function (d) { cachedMe = d.me; return d; });
   }
 
   /* sBTC (Demo-Bitcoin) — nur im Live-Modus */
@@ -466,6 +476,7 @@ var PS = (function () {
     register: register, login: login, guest: guest, upgrade: upgrade,
     logout: logout, deleteAccount: deleteAccount, setAvatar: setAvatar,
     claimStart: claimStart, wallet: wallet, stats: stats,
+    invites: invites, createInvite: createInvite,
     market: market, createOffer: createOffer, cancelOffer: cancelOffer, buyOffer: buyOffer,
     btcFaucet: btcFaucet, btcBurn: btcBurn, fmtBtc: fmtBtc,
     friends: friends, searchUsers: searchUsers, requestFriend: requestFriend,

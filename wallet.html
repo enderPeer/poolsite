@@ -35,9 +35,9 @@
         <div class="eur">Burn gesamt: <span class="burn-chip" id="w-burn">—</span></div>
       </div>
       <div class="bc-right">
-        <div class="label">Einmaliges Startguthaben</div>
-        <button class="btn small" style="margin-top:8px" id="btn-claim" onclick="doClaim()">10 € abholen</button>
-        <div class="hint" id="claim-hint" style="margin-top:8px"></div>
+        <div class="label">Referral-Einnahmen</div>
+        <div class="big" style="font-size:1.5rem" id="w-referral">—</div>
+        <div class="hint" id="referral-hint" style="margin-top:6px">10 % der Token deiner Eingeladenen — Links gibt es im Profil.</div>
       </div>
     </div>
 
@@ -212,15 +212,11 @@ function renderWallet(w) {
   document.getElementById('w-burn').textContent = PS.fmtEur(rec.burn);
   document.getElementById('b-balance').textContent = PS.fmtBtc(rec.sbtc);
 
-  // Startguthaben-Claim
-  var claimBtn = document.getElementById('btn-claim');
-  var claimHint = document.getElementById('claim-hint');
-  if (rec.startClaimed) {
-    claimBtn.style.display = 'none';
-    claimHint.textContent = '✓ Bereits abgeholt — jede:r Nutzer:in genau einmal.';
-  } else {
-    claimBtn.style.display = '';
-    claimHint.textContent = 'Einmalig pro Konto. Damit kannst du posten, liken und kommentieren.';
+  // Referral-Einnahmen (10 % der Token deiner Eingeladenen)
+  document.getElementById('w-referral').textContent = fmt(rec.referralEarned || 0, 2) + ' PST';
+  if (rec.referredBy) {
+    document.getElementById('referral-hint').textContent =
+      'Du wurdest geworben — 10 % deiner verdienten Token gehen an @' + rec.referredBy + '.';
   }
 
   // Heutige Verteilung
@@ -244,7 +240,7 @@ function renderWallet(w) {
   gateEl.className = 'delta ' + (gateOpen ? 'up' : 'down');
   if (rec.actions === 0) {
     document.getElementById('st-explain').textContent =
-      'Noch keine Aktionen: Hole dein Startguthaben und poste, kommentiere oder like im Newsfeed — jede bezahlte Aktion erhöht deinen Burn und baut dein Standing auf.';
+      'Noch keine Aktionen: Poste, kommentiere oder like im Newsfeed — jede bezahlte Aktion erhöht deinen Burn und baut dein Standing auf.';
   } else if (gateOpen) {
     document.getElementById('st-explain').textContent =
       'Dein Gate ist offen: Deine Interaktionen geben anderen Gewicht — und Engagement auf deinen Inhalten bringt dir Anteile an der täglichen Verteilung. Jede Aktion ohne Einsatz senkt deine Rate.';
@@ -298,14 +294,6 @@ function doBurn() {
     setBtcMsg(amt.toFixed(8).replace('.', ',') + ' sBTC an ' + d.deadAddress.slice(0, 14) + '… verbrannt → +' + PS.fmtEur(d.credited) + ' Credits. ✓', 'ok');
     return refresh();
   }).catch(function (e) { setBtcMsg(e.message, 'error'); });
-}
-
-function doClaim() {
-  PS.claimStart().then(function () {
-    return PS.wallet();
-  }).then(renderWallet).catch(function (e) {
-    document.getElementById('claim-hint').textContent = e.message;
-  });
 }
 
 function refresh() {
