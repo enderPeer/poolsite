@@ -108,7 +108,7 @@ var PS = (function () {
   }
   function lPostPayload(users, p) {
     return {
-      id: p.id, text: p.text, image: p.image || null, createdAt: p.createdAt,
+      id: p.id, text: p.text, image: p.image || null, video: p.video || null, createdAt: p.createdAt,
       author: lPublic(users, p.author), authorKey: p.author,
       likes: p.likes || [], dislikes: p.dislikes || [],
       comments: (p.comments || []).map(function (c) {
@@ -352,10 +352,11 @@ var PS = (function () {
     );
   }
 
-  function addPost(text, image) {
+  function addPost(text, image, video) {
     if (mode === 'server') {
-      return call('/api/posts', 'POST', { text: text, image: image || null }).then(function (d) { cachedMe = d.me; });
+      return call('/api/posts', 'POST', { text: text, image: image || null, video: video || null }).then(function (d) { cachedMe = d.me; });
     }
+    if (video) return Promise.reject(new Error('Videos gibt es nur im Live-Modus (mit Server).'));
     var pay = lCharge('post');
     if (!pay.ok) return Promise.reject(new Error(pay.error));
     var ps = lPosts();

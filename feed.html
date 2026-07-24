@@ -33,14 +33,21 @@
             <button class="img-remove" title="Bild entfernen" onclick="removeImage()">✕</button>
             <span class="img-size" id="img-size"></span>
           </div>
+          <div class="img-preview" id="vid-preview" style="display:none">
+            <video id="vid-preview-el" controls playsinline muted style="max-width:220px; max-height:160px; border-radius:10px; border:1px solid var(--line); display:block"></video>
+            <button class="img-remove" title="Video entfernen" onclick="removeVideo()">✕</button>
+            <span class="img-size" id="vid-size"></span>
+          </div>
           <div class="composer-foot">
             <span class="count"><span id="char-count">0</span>/500 · Posten kostet <span class="burn-chip" id="post-price">—</span></span>
             <span style="display:flex; gap:8px">
-              <button class="pill-btn" title="Bild anhängen" onclick="document.getElementById('img-file').click()">📷 Bild</button>
-              <button class="btn small" onclick="createPost()">Posten</button>
+              <button class="pill-btn" title="Bild anhängen" onclick="document.getElementById('img-file').click()">Bild</button>
+              <button class="pill-btn" title="Video anhängen (max. 7 Sekunden)" onclick="document.getElementById('vid-file').click()">Video 7s</button>
+              <button class="btn small" id="btn-post" onclick="createPost()">Posten</button>
             </span>
           </div>
           <input type="file" id="img-file" accept="image/*" style="display:none" onchange="pickImage(this)">
+          <input type="file" id="vid-file" accept="video/*" style="display:none" onchange="pickVideo(this)">
           <div class="msg" id="msg-post"></div>
         </div>
       </div>
@@ -157,13 +164,112 @@ function removeImage() {
   document.getElementById('img-preview-el').src = '';
 }
 
+/* Video auf dem Gerät kürzen (max. 7 s), auf 480p skalieren und neu kodieren */
+var pendingVideo = null;
+var MAX_CLIP_SECONDS = 7;
+
+function compressVideo(file, cb, onErr) {
+  var url = URL.createObjectURL(file);
+  var v = document.createElement('video');
+  v.src = url; v.playsInline = true; v.preload = 'auto';
+  v.onerror = function () { URL.revokeObjectURL(url); onErr('Video konnte nicht gelesen werden.'); };
+  v.onloadedmetadata = function () {
+    var dur = Math.min(v.duration || MAX_CLIP_SECONDS, MAX_CLIP_SECONDS);
+    var scale = Math.min(1, 480 / Math.max(v.videoWidth || 480, v.videoHeight || 480));
+    var w = Math.max(2, Math.round(v.videoWidth * scale / 2) * 2);
+    var h = Math.max(2, Math.round(v.videoHeight * scale / 2) * 2);
+    var canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    var ctx = canvas.getContext('2d');
+    var stream = canvas.captureStream(30);
+
+    // Ton übernehmen, ohne ihn beim Verarbeiten abzuspielen
+    try {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      var ac = new AC();
+      var srcNode = ac.createMediaElementSource(v);
+      var dest = ac.createMediaStreamDestination();
+      srcNode.connect(dest);
+      dest.stream.getAudioTracks().forEach(function (t) { stream.addTrack(t); });
+    } catch (e) { /* dann eben ohne Ton */ }
+
+    var mime = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4']
+      .filter(function (m) { return window.MediaRecorder && MediaRecorder.isTypeSupported(m); })[0];
+    if (!mime) { URL.revokeObjectURL(url); onErr('Dein Browser unterstützt keine Video-Komprimierung.'); return; }
+
+    var rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 800000, audioBitsPerSecond: 64000 });
+    var chunks = [];
+    rec.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+    rec.onstop = function () {
+      var blob = new Blob(chunks, { type: mime.split(';')[0] });
+      var r = new FileReader();
+      r.onload = function () {
+        URL.revokeObjectURL(url);
+        if (r.result.length > 3 * 1024 * 1024) { onErr('Video nach Kompression noch zu groß — bitte kürzeres Video wählen.'); return; }
+        cb(r.result, file.size, blob.size, dur);
+      };
+      r.readAsDataURL(blob);
+    };
+
+    var stopped = false;
+    function stopAll() {
+      if (stopped) return;
+      stopped = true;
+      try { v.pause(); } catch (e) {}
+      try { rec.stop(); } catch (e) {}
+    }
+    function draw() {
+      if (stopped) return;
+      ctx.drawImage(v, 0, 0, w, h);
+      if (v.ended || v.currentTime >= dur) { stopAll(); return; }
+      requestAnimationFrame(draw);
+    }
+    v.currentTime = 0;
+    v.play().then(function () {
+      rec.start(250);
+      draw();
+      setTimeout(stopAll, dur * 1000 + 250); // harte 7-Sekunden-Grenze
+    }).catch(function () { URL.revokeObjectURL(url); onErr('Video konnte nicht verarbeitet werden.'); });
+  };
+}
+
+function pickVideo(input) {
+  var file = input.files && input.files[0];
+  input.value = '';
+  if (!file) return;
+  if (!/^video\//.test(file.type)) { setMsg('Bitte wähle eine Videodatei aus.', 'error'); return; }
+  removeImage();
+  setMsg('Video wird auf deinem Gerät komprimiert (max. 7 s)…', 'ok');
+  document.getElementById('btn-post').disabled = true;
+  compressVideo(file, function (dataUrl, origBytes, newBytes, dur) {
+    pendingVideo = dataUrl;
+    document.getElementById('btn-post').disabled = false;
+    document.getElementById('vid-preview').style.display = '';
+    document.getElementById('vid-preview-el').src = dataUrl;
+    var saved = Math.max(0, Math.round((1 - newBytes / Math.max(origBytes, 1)) * 100));
+    document.getElementById('vid-size').textContent =
+      dur.toFixed(1).replace('.', ',') + ' s · ' + Math.round(origBytes / 1024) + ' KB → ' + Math.round(newBytes / 1024) + ' KB (' + saved + ' % gespart)';
+    setMsg('', '');
+  }, function (err) {
+    document.getElementById('btn-post').disabled = false;
+    setMsg(err, 'error');
+  });
+}
+
+function removeVideo() {
+  pendingVideo = null;
+  document.getElementById('vid-preview').style.display = 'none';
+  document.getElementById('vid-preview-el').src = '';
+}
+
 function createPost() {
   var ta = document.getElementById('post-text');
   var text = ta.value.trim();
-  if (!text && !pendingImage) { setMsg('Schreib etwas oder füge ein Bild hinzu.', 'error'); return; }
-  PS.addPost(text, pendingImage).then(function () {
+  if (!text && !pendingImage && !pendingVideo) { setMsg('Schreib etwas oder füge ein Bild/Video hinzu.', 'error'); return; }
+  PS.addPost(text, pendingImage, pendingVideo).then(function () {
     ta.value = '';
     removeImage();
+    removeVideo();
     updateCount();
     setMsg('Beitrag veröffentlicht — ' + PS.fmtEur(PS.PRICES.post) + ' Burn → Commitment B. ✓', 'ok');
     return refresh();
@@ -252,6 +358,7 @@ function renderPosts(posts) {
       '</div>' +
       (p.text ? '<div class="post-text">' + PS.escapeHtml(p.text) + '</div>' : '') +
       (p.image ? '<img class="post-img" src="' + p.image + '" alt="Beitragsbild" loading="lazy" onclick="this.classList.toggle(\'expanded\')">' : '') +
+      (p.video ? '<video class="post-video" src="' + p.video + '" controls playsinline preload="metadata" loop></video>' : '') +
       '<div class="post-actions">' +
         '<button class="' + (liked ? 'liked' : '') + '" title="Like (' + PS.fmtEur(PS.PRICES.like) + ')" onclick="doReact(\'' + p.id + '\',\'likes\')">' +
           (liked ? '♥' : '♡') + ' ' + (p.likes.length || '') + '</button>' +

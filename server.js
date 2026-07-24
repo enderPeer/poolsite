@@ -21,8 +21,10 @@ const FAUCET_AMOUNT = 0.0002;             // täglich abholbar (= 20 € beim Bu
 const DEAD_ADDRESS = 'sbtc1qdead000000000000000000000000000burn';
 function r8(n) { return Math.round(n * 1e8) / 1e8; }
 const USER_RE = /^[A-Za-z0-9][A-Za-z0-9._]{1,29}$/;
-const MAX_BODY = 1024 * 1024; // 1 MB (Avatare & komprimierte Beitragsbilder als DataURL)
-const MAX_IMAGE = 700 * 1024; // max. Bildgröße nach Client-Kompression
+const MAX_BODY = 4 * 1024 * 1024; // 4 MB (komprimierte Videos als DataURL beim Upload)
+const MAX_IMAGE = 700 * 1024;     // max. Bildgröße nach Client-Kompression
+const MAX_VIDEO = 3 * 1024 * 1024; // max. Video-DataURL (~2 MB binär) nach Client-Kompression
+const MEDIA_DIR = path.join(DATA_DIR, 'media');
 
 /* ---------- Token-Verteilung (Konstanten) ---------- */
 const DAILY_TOKENS = 5000;          // Jahr-1-Emission pro Tag
@@ -99,9 +101,23 @@ function mePayload(key) {
   };
 }
 
+function saveVideo(dataUrl) {
+  const m = dataUrl.match(/^data:video\/(webm|mp4);base64,(.+)$/);
+  if (!m) return null;
+  if (!fs.existsSync(MEDIA_DIR)) fs.mkdirSync(MEDIA_DIR, { recursive: true });
+  const fname = newId('vid') + '.' + m[1];
+  fs.writeFileSync(path.join(MEDIA_DIR, fname), Buffer.from(m[2], 'base64'));
+  return '/media/' + fname;
+}
+function deleteVideo(videoPath) {
+  if (!videoPath) return;
+  const f = path.join(MEDIA_DIR, path.basename(videoPath));
+  try { if (fs.existsSync(f)) fs.unlinkSync(f); } catch (e) {}
+}
+
 function postPayload(p) {
   return {
-    id: p.id, text: p.text, image: p.image || null, createdAt: p.createdAt,
+    id: p.id, text: p.text, image: p.image || null, video: p.video || null, createdAt: p.createdAt,
     author: publicUser(p.author), authorKey: p.author,
     likes: p.likes || [], dislikes: p.dislikes || [],
     comments: (p.comments || []).map(c => ({
@@ -297,6 +313,7 @@ function handleApi(req, res, pathname, body) {
   }
 
   if (pathname === '/api/me' && req.method === 'DELETE') {
+    db.posts.filter(p => p.author === key).forEach(p => deleteVideo(p.video));
     db.posts = db.posts.filter(p => p.author !== key);
     db.posts.forEach(p => {
       p.likes = (p.likes || []).filter(x => x !== key);
@@ -658,10 +675,18 @@ function handleApi(req, res, pathname, body) {
       if (d.length > MAX_IMAGE) return json(res, 400, { error: 'Bild zu groß (max. ~500 KB nach Kompression).' });
       image = d;
     }
-    if (!text && !image) return json(res, 400, { error: 'Schreib etwas oder füge ein Bild hinzu.' });
+    let video = null;
+    if (body.video) {
+      const d = String(body.video);
+      if (!/^data:video\/(webm|mp4);base64,/.test(d)) return json(res, 400, { error: 'Ungültiges Videoformat.' });
+      if (d.length > MAX_VIDEO) return json(res, 400, { error: 'Video zu groß (max. ~2 MB nach Kompression).' });
+      video = saveVideo(d);
+      if (!video) return json(res, 400, { error: 'Video konnte nicht gespeichert werden.' });
+    }
+    if (!text && !image && !video) return json(res, 400, { error: 'Schreib etwas oder füge ein Bild/Video hinzu.' });
     const pay = charge(me, 'post');
-    if (!pay.ok) return json(res, 402, { error: pay.error });
-    db.posts.push({ id: newId('post'), author: key, text: text, image: image, createdAt: new Date().toISOString(), likes: [], dislikes: [], comments: [] });
+    if (!pay.ok) { deleteVideo(video); return json(res, 402, { error: pay.error }); }
+    db.posts.push({ id: newId('post'), author: key, text: text, image: image, video: video, createdAt: new Date().toISOString(), likes: [], dislikes: [], comments: [] });
     stat('posts', 1, key);
     stat('burn', PRICES.post);
     saveDb();
@@ -724,6 +749,7 @@ function handleApi(req, res, pathname, body) {
     const p = db.posts.find(x => x.id === mDelP[1]);
     if (!p) return json(res, 404, { error: 'Beitrag nicht gefunden.' });
     if (p.author !== key) return json(res, 403, { error: 'Nur eigene Beiträge können gelöscht werden.' });
+    deleteVideo(p.video);
     db.posts = db.posts.filter(x => x.id !== p.id);
     saveDb();
     return json(res, 200, { ok: true });
@@ -736,9 +762,19 @@ function handleApi(req, res, pathname, body) {
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.js': 'application/javascript; charset=utf-8', '.json': 'application/json',
-  '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.ico': 'image/x-icon'
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.ico': 'image/x-icon',
+  '.webm': 'video/webm', '.mp4': 'video/mp4'
 };
 function serveStatic(res, pathname) {
+  // Hochgeladene Medien aus data/media ausliefern
+  if (pathname.startsWith('/media/')) {
+    const mf = path.join(MEDIA_DIR, path.basename(pathname));
+    return fs.readFile(mf, (err, buf) => {
+      if (err) { res.writeHead(404); return res.end('Nicht gefunden'); }
+      res.writeHead(200, { 'Content-Type': MIME[path.extname(mf)] || 'application/octet-stream', 'Cache-Control': 'public, max-age=31536000' });
+      res.end(buf);
+    });
+  }
   let rel = pathname === '/' ? '/index.html' : pathname;
   const file = path.normalize(path.join(ROOT, rel));
   if (!file.startsWith(ROOT) || rel.startsWith('/data') || rel === '/server.js' || rel.startsWith('/.git')) {
