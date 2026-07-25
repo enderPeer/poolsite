@@ -25,6 +25,15 @@
       <p class="page-sub">Konto, Benachrichtigungen und Hilfe.</p>
 
       <div class="chart-card">
+        <h3>Sprache</h3>
+        <div class="hint">Deutsch oder Englisch — die Wahl wird gespeichert. / German or English — your choice is saved.</div>
+        <div class="cur-toggle" style="max-width:320px; margin-top:12px">
+          <button type="button" id="lang-de" onclick="setLangDE()">Deutsch</button>
+          <button type="button" id="lang-en" onclick="setLangEN()">English</button>
+        </div>
+      </div>
+
+      <div class="chart-card">
         <h3>App installieren</h3>
         <div class="hint" id="install-hint">Lege PoolSite als App auf deinen Startbildschirm — schneller Zugriff, Vollbild, funktioniert wie eine echte App.</div>
         <button class="btn small" style="margin-top:12px" id="btn-install" onclick="doInstall()" disabled>App installieren</button>
@@ -83,6 +92,7 @@
   </div>
 </main>
 
+<script src="assets/i18n.js"></script>
 <script src="assets/app-core.js"></script>
 <script>
 function setMsg(id, text, type) {
@@ -122,6 +132,13 @@ function savePassword(ev) {
     setMsg('msg-pw', 'Passwort geändert. ✓', 'ok');
   }).catch(function (e) { setMsg('msg-pw', e.message, 'error'); });
   return false;
+}
+
+function setLangDE() { if (PSI18N.lang() !== 'de') PSI18N.setLang('de'); }
+function setLangEN() { if (PSI18N.lang() !== 'en') PSI18N.setLang('en'); }
+function refreshLangUI() {
+  document.getElementById('lang-de').classList.toggle('active', PSI18N.lang() === 'de');
+  document.getElementById('lang-en').classList.toggle('active', PSI18N.lang() === 'en');
 }
 
 function isIOS() { return /iP(hone|ad|od)/.test(navigator.userAgent) && !window.MSStream; }
@@ -183,6 +200,7 @@ document.addEventListener('DOMContentLoaded', function () {
     PS.modeBanner();
     PS.renderNav('settings');
     fill();
+    refreshLangUI();
     refreshInstallUI();
     refreshNotifUI();
   });

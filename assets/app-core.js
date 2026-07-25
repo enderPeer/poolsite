@@ -674,6 +674,9 @@ var PS = (function () {
       return '<a class="appnav-tab' + (t.id === active ? ' active' : '') + '" href="' + t.href + '">' + t.label +
         (t.badge ? '<span class="nav-badge">' + (t.badge > 9 ? '9+' : t.badge) + '</span>' : '') + '</a>';
     }).join('') + '<span class="appnav-grow"></span>' +
+      (typeof PSI18N !== 'undefined'
+        ? '<button class="appnav-lang" onclick="PSI18N.toggle()" title="Sprache wechseln / switch language">' + (PSI18N.lang() === 'en' ? 'DE' : 'EN') + '</button>'
+        : '') +
       '<a class="appnav-credits" href="wallet.html" title="Stable-Guthaben">' + fmtEur(credits) + '</a>' +
       '<a class="appnav-post" href="feed.html#neu">＋ Beitrag</a></div>';
     host.style.display = '';

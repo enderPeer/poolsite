@@ -209,6 +209,11 @@
     .stat .v { font-size: 1.1rem; }
   }
 </style>
+<script src="assets/i18n.js"></script>
+<script>document.addEventListener('DOMContentLoaded', function () {
+  var t = document.getElementById('lang-toggle');
+  if (t) t.textContent = PSI18N.lang() === 'en' ? 'DE' : 'EN';
+});</script>
 </head>
 <body>
 
@@ -220,6 +225,7 @@
       <a href="#tokenomics">Tokenomics</a>
       <a href="#erloese">Erlösmodell</a>
       <a href="#roadmap">Roadmap</a>
+      <a href="#" onclick="PSI18N.toggle(); return false;" style="font-family:var(--font-mono); font-size:.8rem" id="lang-toggle">EN</a>
       <a class="app-link" href="app.html?api=https://phones-editors-precious-odds.trycloudflare.com">App&nbsp;→</a>
     </nav>
   </div>
