@@ -426,8 +426,8 @@ function postHtml(p, meKey) {
         friendButton(p.authorKey) +
       '</div>' +
       (p.text ? '<div class="post-text">' + PS.escapeHtml(p.text) + '</div>' : '') +
-      (p.image ? '<img class="post-img" src="' + p.image + '" alt="Beitragsbild" loading="lazy" onclick="this.classList.toggle(\'expanded\')">' : '') +
-      (p.video ? '<video class="post-video" src="' + p.video + '" controls playsinline preload="metadata" loop></video>' : '') +
+      (p.image ? '<img class="post-img" src="' + PS.media(p.image) + '" alt="Beitragsbild" loading="lazy" onclick="this.classList.toggle(\'expanded\')">' : '') +
+      (p.video ? '<video class="post-video" src="' + PS.media(p.video) + '" controls playsinline preload="metadata" loop></video>' : '') +
       '<div class="post-actions">' +
         '<button class="' + (liked ? 'liked' : '') + '" title="Like (' + PS.fmtEur(PS.PRICES.like) + ')" onclick="doReact(\'' + p.id + '\',\'likes\')">' +
           (liked ? '♥' : '♡') + ' ' + (p.likes.length || '') + '</button>' +

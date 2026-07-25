@@ -35,8 +35,14 @@ var PS = (function () {
     var d = Math.floor(h / 24); if (d < 7) return 'vor ' + d + ' Tag' + (d > 1 ? 'en' : '');
     return new Date(iso).toLocaleDateString('de-DE');
   }
+  // Medien-Pfade (/media/...) müssen vom API-Server geladen werden, auch wenn
+  // das Frontend auf einer anderen Adresse läuft (z. B. GitHub Pages + Tunnel-API).
+  function media(u) {
+    if (u && apiBase && u.indexOf('/media/') === 0) return apiBase + u;
+    return u;
+  }
   function avatarHtml(who) {
-    if (who && who.avatar) { return '<img src="' + who.avatar + '" alt="">'; }
+    if (who && who.avatar) { return '<img src="' + media(who.avatar) + '" alt="">'; }
     var ch = who && who.name ? who.name.charAt(0).toUpperCase() : '?';
     return '<span>' + ch + '</span>';
   }
@@ -706,7 +712,7 @@ var PS = (function () {
     chat: chat, sendMessage: sendMessage,
     posts: posts, addPost: addPost, react: react,
     addComment: addComment, delComment: delComment, delPost: delPost,
-    fmtEur: fmtEur, avatarHtml: avatarHtml, escapeHtml: escapeHtml, timeAgo: timeAgo,
+    fmtEur: fmtEur, avatarHtml: avatarHtml, media: media, escapeHtml: escapeHtml, timeAgo: timeAgo,
     renderNav: renderNav, modeBanner: modeBanner
   };
 })();

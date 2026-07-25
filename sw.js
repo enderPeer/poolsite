@@ -1,6 +1,6 @@
 /* PoolSite Service Worker — macht die App installierbar (PWA) und offline-tauglich.
    Strategie: App-Shell (HTML/CSS/JS) im Cache; API und Medien immer aus dem Netz. */
-const CACHE = 'poolsite-v1';
+const CACHE = 'poolsite-v2';
 const SHELL = [
   'index.html', 'app.html', 'feed.html', 'wallet.html', 'market.html',
   'friends.html', 'chat.html', 'stats.html', 'settings.html', 'notifications.html',
