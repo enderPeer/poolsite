@@ -134,10 +134,11 @@ var PS = (function () {
     var stored = localStorage.getItem(API_KEY);
     apiBase = stored || '';
 
+    try { setupPWA(); } catch (e) {}
     return fetch(apiBase + '/api/health', { method: 'GET' })
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        if (d && d.mode === 'server') { mode = 'server'; return refreshMe(); }
+        if (d && d.mode === 'server') { mode = 'server'; return refreshMe().then(function () { startNotifPoller(); }); }
         mode = 'local'; cachedMe = lMe();
       })
       .catch(function () { mode = 'local'; cachedMe = lMe(); });
@@ -392,6 +393,89 @@ var PS = (function () {
     show();
   }
 
+  /* ---------- PWA: Installierbarkeit & Service Worker ---------- */
+  var deferredInstall = null;
+  function base() { return location.pathname.replace(/[^/]*$/, ''); } // Verzeichnis der aktuellen Seite
+
+  function setupPWA() {
+    // Manifest, Theme-Farbe und Apple-Icon in den <head> injizieren (einmalig)
+    if (!document.querySelector('link[rel="manifest"]')) {
+      var m = document.createElement('link'); m.rel = 'manifest'; m.href = base() + 'manifest.webmanifest';
+      document.head.appendChild(m);
+    }
+    if (!document.querySelector('meta[name="theme-color"]')) {
+      var t = document.createElement('meta'); t.name = 'theme-color'; t.content = '#0a1416';
+      document.head.appendChild(t);
+    }
+    if (!document.querySelector('link[rel="apple-touch-icon"]')) {
+      var a = document.createElement('link'); a.rel = 'apple-touch-icon'; a.href = base() + 'assets/icon.svg';
+      document.head.appendChild(a);
+      var c = document.createElement('meta'); c.name = 'apple-mobile-web-app-capable'; c.content = 'yes';
+      document.head.appendChild(c);
+    }
+    // Service Worker registrieren (nur über HTTPS oder localhost verfügbar)
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register(base() + 'sw.js').catch(function () {});
+    }
+    // Installations-Angebot abfangen
+    window.addEventListener('beforeinstallprompt', function (e) {
+      e.preventDefault(); deferredInstall = e;
+      document.dispatchEvent(new Event('ps-installable'));
+    });
+  }
+  function canInstall() { return !!deferredInstall; }
+  function promptInstall() {
+    if (!deferredInstall) return Promise.resolve('unavailable');
+    var e = deferredInstall; deferredInstall = null;
+    e.prompt();
+    return e.userChoice.then(function (r) { return r.outcome; });
+  }
+
+  /* ---------- Geräte-Benachrichtigungen ---------- */
+  var NOTIF_SEEN_KEY = 'poolsite_notif_seen';
+  var notifPoller = null;
+
+  function notificationsSupported() { return 'Notification' in window; }
+  function notificationPermission() { return notificationsSupported() ? Notification.permission : 'unsupported'; }
+  function enableDeviceNotifications() {
+    if (!notificationsSupported()) return Promise.resolve('unsupported');
+    return Notification.requestPermission().then(function (p) {
+      if (p === 'granted') startNotifPoller();
+      return p;
+    });
+  }
+
+  function showDeviceNotification(text) {
+    var opts = { body: text, icon: base() + 'assets/icon.svg', badge: base() + 'assets/icon.svg', data: { url: base() + 'notifications.html' }, tag: 'poolsite' };
+    if ('serviceWorker' in navigator && navigator.serviceWorker.ready) {
+      navigator.serviceWorker.ready.then(function (reg) { reg.showNotification('PoolSite', opts); }).catch(function () {
+        try { new Notification('PoolSite', opts); } catch (e) {}
+      });
+    } else {
+      try { new Notification('PoolSite', opts); } catch (e) {}
+    }
+  }
+
+  function startNotifPoller() {
+    if (mode !== 'server' || notifPoller || notificationPermission() !== 'granted') return;
+    notifPoller = setInterval(function () {
+      call('/api/notifications').then(function (d) {
+        cachedMe = d.me;
+        var list = d.notifications || [];
+        var seen = localStorage.getItem(NOTIF_SEEN_KEY);
+        var newest = list.length ? list[0].id : null;
+        // beim allerersten Lauf nur merken, nicht nachträglich alles melden
+        if (seen === null) { if (newest) localStorage.setItem(NOTIF_SEEN_KEY, newest); return; }
+        if (!newest || newest === seen) return;
+        var fresh = [];
+        for (var i = 0; i < list.length; i++) { if (list[i].id === seen) break; if (!list[i].read) fresh.push(list[i]); }
+        localStorage.setItem(NOTIF_SEEN_KEY, newest);
+        if (fresh.length === 1) showDeviceNotification(fresh[0].text);
+        else if (fresh.length > 1) showDeviceNotification(fresh.length + ' neue Mitteilungen bei PoolSite');
+      }).catch(function () {});
+    }, 25000);
+  }
+
   /* Mitteilungen — nur im Live-Modus */
   function notifications() {
     if (mode !== 'server') return Promise.resolve({ local: true, notifications: [] });
@@ -611,6 +695,9 @@ var PS = (function () {
     invites: invites, createInvite: createInvite,
     updateSettings: updateSettings, startTour: startTour, tourDone: tourDone,
     notifications: notifications, markNotificationsRead: markNotificationsRead,
+    canInstall: canInstall, promptInstall: promptInstall,
+    notificationPermission: notificationPermission, notificationsSupported: notificationsSupported,
+    enableDeviceNotifications: enableDeviceNotifications,
     resetRequest: resetRequest, resetConfirm: resetConfirm,
     market: market, createOffer: createOffer, cancelOffer: cancelOffer, buyOffer: buyOffer,
     btcFaucet: btcFaucet, btcBurn: btcBurn, fmtBtc: fmtBtc,

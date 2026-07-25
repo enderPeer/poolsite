@@ -25,6 +25,20 @@
       <p class="page-sub">Konto, Benachrichtigungen und Hilfe.</p>
 
       <div class="chart-card">
+        <h3>App installieren</h3>
+        <div class="hint" id="install-hint">Lege PoolSite als App auf deinen Startbildschirm — schneller Zugriff, Vollbild, funktioniert wie eine echte App.</div>
+        <button class="btn small" style="margin-top:12px" id="btn-install" onclick="doInstall()" disabled>App installieren</button>
+        <div class="msg" id="msg-install"></div>
+      </div>
+
+      <div class="chart-card">
+        <h3>Geräte-Benachrichtigungen</h3>
+        <div class="hint" id="notif-hint">Erhalte eine Systembenachrichtigung, wenn dir jemand schreibt, deine Beiträge kommentiert/liked oder du Token bekommst — solange die App (oder der Tab) geöffnet ist.</div>
+        <button class="btn small" style="margin-top:12px" id="btn-notif" onclick="doEnableNotif()">Benachrichtigungen aktivieren</button>
+        <div class="msg" id="msg-notif"></div>
+      </div>
+
+      <div class="chart-card">
         <h3>Walkthrough</h3>
         <div class="hint">Die geführte Tour erklärt in 7 Schritten, wie PoolSite funktioniert: Feed, Burn, Standing, Token-Verteilung, Wallet, Markt und Einladungen.</div>
         <button class="btn small" style="margin-top:12px" onclick="PS.startTour()">Walkthrough starten</button>
@@ -110,6 +124,52 @@ function savePassword(ev) {
   return false;
 }
 
+function isIOS() { return /iP(hone|ad|od)/.test(navigator.userAgent) && !window.MSStream; }
+
+function refreshInstallUI() {
+  var btn = document.getElementById('btn-install');
+  var hint = document.getElementById('install-hint');
+  var standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  if (standalone) {
+    btn.style.display = 'none';
+    hint.textContent = 'PoolSite ist bereits als App installiert. ✓';
+  } else if (isIOS()) {
+    btn.style.display = 'none';
+    hint.innerHTML = 'Auf dem iPhone: Teilen-Symbol (unten in Safari) → „Zum Home-Bildschirm" tippen.';
+  } else if (PS.canInstall()) {
+    btn.disabled = false;
+  } else {
+    btn.disabled = true;
+    hint.textContent = 'Öffne die App über deinen Browser (nicht schon installiert), dann erscheint hier der Installieren-Knopf. In Chrome/Edge auch über das Menü → „App installieren".';
+  }
+}
+
+function doInstall() {
+  PS.promptInstall().then(function (outcome) {
+    if (outcome === 'accepted') setMsg('msg-install', 'Installiert! ✓', 'ok');
+    else if (outcome === 'unavailable') setMsg('msg-install', 'Installation über das Browser-Menü möglich.', 'error');
+    refreshInstallUI();
+  });
+}
+
+function refreshNotifUI() {
+  var btn = document.getElementById('btn-notif');
+  var perm = PS.notificationPermission();
+  if (perm === 'unsupported') { btn.disabled = true; btn.textContent = 'Von diesem Browser nicht unterstützt'; }
+  else if (perm === 'granted') { btn.disabled = true; btn.textContent = 'Benachrichtigungen aktiv ✓'; }
+  else if (perm === 'denied') { btn.disabled = true; btn.textContent = 'Im Browser blockiert'; document.getElementById('notif-hint').textContent = 'Benachrichtigungen sind für diese Seite im Browser blockiert — bitte in den Website-Einstellungen des Browsers erlauben.'; }
+}
+
+function doEnableNotif() {
+  PS.enableDeviceNotifications().then(function (p) {
+    if (p === 'granted') setMsg('msg-notif', 'Aktiviert — du bekommst ab jetzt Systembenachrichtigungen. ✓', 'ok');
+    else if (p === 'denied') setMsg('msg-notif', 'Abgelehnt. Du kannst es in den Browser-Einstellungen wieder erlauben.', 'error');
+    refreshNotifUI();
+  });
+}
+
+document.addEventListener('ps-installable', refreshInstallUI);
+
 function doLogout() { PS.logout().then(function () { location.href = 'app.html'; }); }
 
 function doDelete() {
@@ -123,6 +183,8 @@ document.addEventListener('DOMContentLoaded', function () {
     PS.modeBanner();
     PS.renderNav('settings');
     fill();
+    refreshInstallUI();
+    refreshNotifUI();
   });
 });
 </script>
