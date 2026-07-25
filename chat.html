@@ -28,11 +28,20 @@
       <div class="chat-box" id="chat-box">
         <div class="chat-empty">Lade Chat…</div>
       </div>
+      <div class="transfer-form" id="transfer-form" style="display:none">
+        <input type="number" id="transfer-amount" min="0.01" step="0.01" placeholder="Betrag (PST)">
+        <button class="pill-btn primary" onclick="doTransfer()">Senden</button>
+        <button class="pill-btn" onclick="toggleTransfer(false)">Abbrechen</button>
+        <span class="hint-inline" id="transfer-balance"></span>
+      </div>
       <div class="chat-input">
+        <button class="pill-btn" title="GIF senden" onclick="document.getElementById('gif-file').click()">GIF</button>
+        <button class="pill-btn" title="Token senden" id="btn-transfer" onclick="toggleTransfer(true)">PST</button>
         <input type="text" id="msg-text" maxlength="1000" placeholder="Nachricht schreiben…"
           onkeydown="if(event.key==='Enter')send()">
         <button class="btn small" onclick="send()">Senden</button>
       </div>
+      <input type="file" id="gif-file" accept="image/gif" style="display:none" onchange="pickGif(this)">
       <div class="msg" id="msg-err"></div>
     </div>
   </div>
@@ -67,8 +76,16 @@ function render(d) {
   box.innerHTML = d.messages.map(function (m) {
     var mine = m.from === meKey;
     var time = new Date(m.at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-    return '<div class="bubble ' + (mine ? 'mine' : 'theirs') + '">' + PS.escapeHtml(m.text) +
-      '<span class="t">' + time + '</span></div>';
+    var cls = 'bubble ' + (mine ? 'mine' : 'theirs');
+    if (m.type === 'transfer') {
+      var label = mine ? ('Du hast ' + m.amount + ' PST gesendet') : ('+' + m.amount + ' PST erhalten');
+      return '<div class="' + cls + ' transfer">' + label + '<span class="t">' + time + '</span></div>';
+    }
+    if (m.type === 'gif') {
+      return '<div class="' + cls + ' gifmsg"><img class="chat-gif" src="' + PS.media(m.gif) + '" alt="GIF" loading="lazy">' +
+        '<span class="t">' + time + '</span></div>';
+    }
+    return '<div class="' + cls + '">' + PS.escapeHtml(m.text) + '<span class="t">' + time + '</span></div>';
   }).join('');
   box.scrollTop = box.scrollHeight;
 }
@@ -84,6 +101,40 @@ function send() {
   if (!text) return;
   inp.value = '';
   PS.sendMessage(friendKey, text).then(refresh).catch(function (e) { setErr(e.message); });
+}
+
+/* GIF senden (animiert, ohne Re-Encoding; Limit ~1,5 MB) */
+function pickGif(input) {
+  var file = input.files && input.files[0];
+  input.value = '';
+  if (!file) return;
+  if (file.type !== 'image/gif') { setErr('Bitte wähle eine GIF-Datei aus.'); return; }
+  if (file.size > 1.5 * 1024 * 1024) { setErr('GIF zu groß (max. 1,5 MB).'); return; }
+  var r = new FileReader();
+  r.onload = function (e) {
+    PS.sendGif(friendKey, e.target.result).then(refresh).catch(function (err) { setErr(err.message); });
+  };
+  r.readAsDataURL(file);
+}
+
+/* Token an den Chat-Partner senden */
+function toggleTransfer(show) {
+  document.getElementById('transfer-form').style.display = show ? '' : 'none';
+  if (show) {
+    var me = PS.me();
+    document.getElementById('transfer-balance').textContent = 'Verfügbar: ' + (me.tokens || 0) + ' PST';
+    document.getElementById('transfer-amount').focus();
+  }
+}
+
+function doTransfer() {
+  var amt = +document.getElementById('transfer-amount').value || 0;
+  PS.transferTokens(friendKey, amt).then(function () {
+    document.getElementById('transfer-amount').value = '';
+    toggleTransfer(false);
+    setErr('');
+    return refresh();
+  }).catch(function (e) { setErr(e.message); });
 }
 
 document.addEventListener('DOMContentLoaded', function () {

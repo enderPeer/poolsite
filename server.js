@@ -160,7 +160,7 @@ function saveVideo(dataUrl) {
   return '/media/' + fname;
 }
 function saveImageFile(dataUrl, prefix) {
-  const m = String(dataUrl).match(/^data:image\/(jpeg|jpg|png|webp);base64,(.+)$/);
+  const m = String(dataUrl).match(/^data:image\/(jpeg|jpg|png|webp|gif);base64,(.+)$/);
   if (!m) return null;
   if (!fs.existsSync(MEDIA_DIR)) fs.mkdirSync(MEDIA_DIR, { recursive: true });
   const ext = m[1] === 'jpeg' ? 'jpg' : m[1];
@@ -1024,7 +1024,7 @@ function handleApi(req, res, pathname, body) {
       .filter(m => (m.from === key && m.to === other) || (m.from === other && m.to === key))
       .sort((a, b) => a.at < b.at ? -1 : 1)
       .slice(-200)
-      .map(m => ({ id: m.id, from: m.from, text: m.text, at: m.at }));
+      .map(m => ({ id: m.id, from: m.from, text: m.text, at: m.at, type: m.type || 'text', amount: m.amount || null, gif: m.gif || null }));
     me.lastRead[other] = new Date().toISOString();
     saveDb();
     return json(res, 200, {
@@ -1037,6 +1037,19 @@ function handleApi(req, res, pathname, body) {
     const other = mChat[1];
     ensureSocial(me);
     if (me.friends.indexOf(other) < 0 || !db.users[other]) return json(res, 403, { error: 'Ihr seid nicht befreundet.' });
+    // GIF-Nachricht (animiert, ohne Re-Encoding; max. ~1,5 MB)
+    if (body.gif) {
+      const g = String(body.gif);
+      if (!/^data:image\/gif;base64,/.test(g)) return json(res, 400, { error: 'Nur GIF-Dateien möglich.' });
+      if (g.length > 2 * 1024 * 1024) return json(res, 400, { error: 'GIF zu groß (max. ~1,5 MB).' });
+      const p = saveImageFile(g, 'gif');
+      if (!p) return json(res, 400, { error: 'GIF konnte nicht gespeichert werden.' });
+      db.messages.push({ id: newId('m'), from: key, to: other, type: 'gif', gif: p, at: new Date().toISOString() });
+      notify(other, 'chat', 'Neue Nachricht von ' + me.name + '.', key);
+      stat(null, 0, key);
+      saveDb();
+      return json(res, 200, { ok: true });
+    }
     const text = String(body.text || '').trim().slice(0, 1000);
     if (!text) return json(res, 400, { error: 'Leere Nachricht.' });
     db.messages.push({ id: newId('m'), from: key, to: other, text: text, at: new Date().toISOString() });
@@ -1044,6 +1057,27 @@ function handleApi(req, res, pathname, body) {
     stat(null, 0, key);
     saveDb();
     return json(res, 200, { ok: true });
+  }
+
+  /* Token-Transfer im Chat: PST direkt an eine:n Freund:in senden */
+  const mTransfer = pathname.match(/^\/api\/chat\/([\w]+)\/transfer$/);
+  if (mTransfer && req.method === 'POST') {
+    const other = mTransfer[1];
+    ensureSocial(me);
+    if (me.guest) return json(res, 403, { error: 'Gäste können keine Token senden.' });
+    const target = db.users[other];
+    if (me.friends.indexOf(other) < 0 || !target) return json(res, 403, { error: 'Ihr seid nicht befreundet.' });
+    if (target.guest) return json(res, 400, { error: 'Gäste können keine Token empfangen.' });
+    const amount = Math.round((+body.amount || 0) * 100) / 100;
+    if (!(amount >= 0.01)) return json(res, 400, { error: 'Mindestbetrag: 0,01 PST.' });
+    if ((me.tokens || 0) + 1e-9 < amount) return json(res, 400, { error: 'Nicht genug Token — du hast ' + (me.tokens || 0) + ' PST.' });
+    me.tokens = round2(me.tokens - amount);
+    target.tokens = round2((target.tokens || 0) + amount);
+    db.messages.push({ id: newId('m'), from: key, to: other, type: 'transfer', amount: amount, at: new Date().toISOString() });
+    notify(other, 'tokens', me.name + ' hat dir ' + amount + ' PST geschickt.', key);
+    stat(null, 0, key);
+    saveDb();
+    return json(res, 200, { ok: true, me: mePayload(key) });
   }
 
   if (pathname === '/api/posts' && req.method === 'POST') {

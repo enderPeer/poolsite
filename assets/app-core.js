@@ -548,6 +548,12 @@ var PS = (function () {
   function unfriend(k) { return serverOnly(function () { return call('/api/friends/' + k, 'DELETE'); }); }
   function chat(k) { return serverOnly(function () { return call('/api/chat/' + k); }); }
   function sendMessage(k, text) { return serverOnly(function () { return call('/api/chat/' + k, 'POST', { text: text }); }); }
+  function sendGif(k, dataUrl) { return serverOnly(function () { return call('/api/chat/' + k, 'POST', { gif: dataUrl }); }); }
+  function transferTokens(k, amount) {
+    return serverOnly(function () {
+      return call('/api/chat/' + k + '/transfer', 'POST', { amount: amount }).then(function (d) { cachedMe = d.me; return d; });
+    });
+  }
 
   function posts(opts) {
     opts = opts || {};
@@ -712,7 +718,7 @@ var PS = (function () {
     btcFaucet: btcFaucet, btcBurn: btcBurn, fmtBtc: fmtBtc,
     friends: friends, searchUsers: searchUsers, requestFriend: requestFriend,
     acceptFriend: acceptFriend, declineFriend: declineFriend, unfriend: unfriend,
-    chat: chat, sendMessage: sendMessage,
+    chat: chat, sendMessage: sendMessage, sendGif: sendGif, transferTokens: transferTokens,
     posts: posts, addPost: addPost, react: react,
     addComment: addComment, delComment: delComment, delPost: delPost,
     fmtEur: fmtEur, avatarHtml: avatarHtml, media: media, escapeHtml: escapeHtml, timeAgo: timeAgo,

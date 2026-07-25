@@ -408,8 +408,20 @@ input:focus, textarea:focus { border-color: var(--aqua); }
 .bubble.mine { align-self: flex-end; background: rgba(45,212,191,.16); border: 1px solid rgba(45,212,191,.3); border-bottom-right-radius: 4px; }
 .bubble.theirs { align-self: flex-start; background: var(--card); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
 .bubble .t { display: block; font-size: .68rem; color: var(--muted); margin-top: 4px; }
-.chat-input { display: flex; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); }
-.chat-input input { flex: 1; }
+.chat-input { display: flex; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line); align-items: center; }
+.chat-input input { flex: 1; min-width: 0; }
+.bubble.transfer {
+  font-family: var(--font-mono); font-weight: 500; color: var(--gold);
+  background: rgba(251,191,36,.08); border: 1px solid rgba(251,191,36,.3);
+}
+.bubble.gifmsg { padding: 6px; }
+.chat-gif { display: block; max-width: 240px; max-height: 200px; border-radius: 12px; }
+.transfer-form {
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  padding: 10px 0; border-top: 1px solid var(--line);
+}
+.transfer-form input { width: 130px; padding: 9px 12px; font-family: var(--font-mono); }
+.transfer-form .hint-inline { font-size: .78rem; color: var(--muted); }
 .chat-empty { text-align: center; color: var(--muted); margin: auto; }
 
 /* Charts: auf kleinen Screens horizontal scrollen statt schrumpfen */
