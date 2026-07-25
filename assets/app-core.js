@@ -321,6 +321,7 @@ var PS = (function () {
     var rec = users[lSession()];
     if (!rec) return Promise.reject(new Error('Nicht angemeldet.'));
     var chain = Promise.resolve();
+    if (payload.bio !== undefined) rec.bio = String(payload.bio || '').trim().slice(0, 300) || null;
     if (payload.email !== undefined) {
       var em = String(payload.email || '').trim();
       rec.email = em || null;
@@ -543,6 +544,29 @@ var PS = (function () {
     return call('/api/friends');
   }
   function searchUsers(q) { return serverOnly(function () { return call('/api/users?q=' + encodeURIComponent(q)).then(function (d) { return d.users; }); }); }
+
+  function getProfile(k) {
+    if (mode === 'server') return call('/api/users/' + k + '/profile');
+    // Lokal-Modus: Profil aus dem localStorage bauen
+    var users = lUsers();
+    var u = users[k];
+    if (!u) return Promise.reject(new Error('Nutzer nicht gefunden.'));
+    var theirPosts = lPosts().filter(function (p) { return p.author === k; })
+      .sort(function (a, b) { return new Date(b.createdAt) - new Date(a.createdAt); });
+    var likes = 0, comments = 0;
+    theirPosts.forEach(function (p) { likes += (p.likes || []).length; comments += (p.comments || []).length; });
+    lEnsure(u);
+    return Promise.resolve({
+      profile: {
+        key: k, name: u.name, avatar: u.avatar || null, bio: u.bio || null,
+        createdAt: u.createdAt, guest: !!u.guest,
+        gateOpen: u.actions > 0 && (u.burn / Math.max(u.actions, 1)) / 0.10 >= 0.2,
+        stats: { posts: theirPosts.length, friends: 0, likesReceived: likes, commentsReceived: comments },
+        relation: k === lSession() ? 'self' : 'none'
+      },
+      posts: theirPosts.slice(0, 50).map(function (p) { return lPostPayload(users, p); })
+    });
+  }
   function requestFriend(k) { return serverOnly(function () { return call('/api/friends/request', 'POST', { to: k }); }); }
   function acceptFriend(k) { return serverOnly(function () { return call('/api/friends/accept', 'POST', { from: k }); }); }
   function declineFriend(k) { return serverOnly(function () { return call('/api/friends/decline', 'POST', { from: k }); }); }
@@ -717,7 +741,7 @@ var PS = (function () {
     resetRequest: resetRequest, resetConfirm: resetConfirm,
     market: market, createOffer: createOffer, cancelOffer: cancelOffer, buyOffer: buyOffer,
     btcFaucet: btcFaucet, btcBurn: btcBurn, fmtBtc: fmtBtc,
-    friends: friends, searchUsers: searchUsers, requestFriend: requestFriend,
+    friends: friends, searchUsers: searchUsers, getProfile: getProfile, requestFriend: requestFriend,
     acceptFriend: acceptFriend, declineFriend: declineFriend, unfriend: unfriend,
     chat: chat, sendMessage: sendMessage, sendGif: sendGif, transferTokens: transferTokens,
     posts: posts, addPost: addPost, react: react,

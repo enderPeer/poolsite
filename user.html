@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PoolSite — Profil</title>
+<meta name="description" content="PoolSite Nutzerprofil.">
+<link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <a class="logo" href="index.html"><span class="logo-mark">P</span> PoolSite</a>
+    <a class="back" href="feed.html">← Zurück zum Feed</a>
+  </div>
+</header>
+<div class="beta-banner" id="mode-banner">Verbinde…</div>
+<nav id="app-nav" class="appnav" style="display:none"></nav>
+
+<main>
+  <div class="wrap">
+    <div class="feed-col">
+
+      <div class="chart-card profile-hero" id="hero" style="display:none">
+        <div class="avatar" id="u-avatar" style="margin:0 auto 14px"><span>?</span></div>
+        <h1 id="u-name" style="text-align:center">—</h1>
+        <div class="u-badges" id="u-badges"></div>
+        <p class="u-bio" id="u-bio" style="display:none"></p>
+        <div class="u-meta" id="u-since">—</div>
+        <div class="u-actions" id="u-actions"></div>
+      </div>
+
+      <div class="stats" id="u-stats" style="display:none">
+        <div class="stat"><div class="v aqua" id="s-posts">—</div><div class="l">Beiträge</div></div>
+        <div class="stat"><div class="v" id="s-friends">—</div><div class="l">Freunde</div></div>
+        <div class="stat"><div class="v" id="s-likes">—</div><div class="l">Erhaltene Likes</div></div>
+        <div class="stat"><div class="v" id="s-comments">—</div><div class="l">Erhaltene Kommentare</div></div>
+      </div>
+
+      <!-- Eigenes Profil: Info bearbeiten -->
+      <div class="chart-card" id="edit-card" style="display:none">
+        <h3>Über mich</h3>
+        <div class="hint">Erzähl der Community etwas über dich — sichtbar auf deinem öffentlichen Profil (max. 300 Zeichen).</div>
+        <textarea id="bio-input" maxlength="300" placeholder="Erzähl etwas über dich…" style="margin-top:10px; min-height:80px"></textarea>
+        <div class="composer-foot">
+          <span class="count"><span id="bio-count">0</span>/300</span>
+          <button class="btn small" onclick="saveBio()">Speichern</button>
+        </div>
+        <div class="msg" id="msg-bio"></div>
+      </div>
+
+      <h2 class="section-h" id="posts-h" style="display:none">Beiträge</h2>
+      <div id="u-posts"></div>
+
+      <div class="msg" id="msg-err"></div>
+    </div>
+  </div>
+</main>
+
+<script src="assets/i18n.js"></script>
+<script src="assets/app-core.js"></script>
+<script>
+var profileKey = new URLSearchParams(location.search).get('u');
+
+function fmt(n) { return (n || 0).toLocaleString('de-DE'); }
+
+function actionButtons(p) {
+  if (p.relation === 'self') {
+    return '<a class="pill-btn" href="app.html">Konto verwalten</a>';
+  }
+  var out = '';
+  if (p.relation === 'friend') {
+    out += '<a class="pill-btn primary" href="chat.html?u=' + p.key + '">Chat</a>';
+  } else if (p.relation === 'in') {
+    out += '<button class="pill-btn primary" onclick="accept()">Annehmen</button>';
+  } else if (p.relation === 'out') {
+    out += '<span class="pill-btn" style="opacity:.6">Angefragt ✓</span>';
+  } else if (PS.getMode() === 'server') {
+    out += '<button class="pill-btn primary" onclick="request()">＋ Freund</button>';
+  }
+  return out;
+}
+
+function request() { PS.requestFriend(profileKey).then(load).catch(function (e) { setErr(e.message); }); }
+function accept() { PS.acceptFriend(profileKey).then(load).catch(function (e) { setErr(e.message); }); }
+
+function setErr(t) {
+  var el = document.getElementById('msg-err');
+  el.className = 'msg' + (t ? ' error' : '');
+  el.textContent = t || '';
+}
+
+function renderPostsList(posts) {
+  var host = document.getElementById('u-posts');
+  if (!posts.length) {
+    host.innerHTML = '<div class="feed-empty">Noch keine Beiträge.</div>';
+    return;
+  }
+  host.innerHTML = posts.map(function (p) {
+    return '<div class="post">' +
+      (p.text ? '<div class="post-text">' + PS.escapeHtml(p.text) + '</div>' : '') +
+      (p.image ? '<img class="post-img" src="' + PS.media(p.image) + '" alt="" loading="lazy" onclick="this.classList.toggle(\'expanded\')">' : '') +
+      (p.video ? '<video class="post-video" src="' + PS.media(p.video) + '" controls playsinline preload="metadata" loop></video>' : '') +
+      '<div class="post-meta-line">' + PS.timeAgo(p.createdAt) +
+        ' · ♥ ' + p.likes.length + ' · 👎 ' + p.dislikes.length + ' · 💬 ' + p.comments.length +
+        (p.score ? ' · Score ' + String(p.score).replace('.', ',') : '') + '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function load() {
+  return PS.getProfile(profileKey).then(function (d) {
+    var p = d.profile;
+    document.getElementById('hero').style.display = '';
+    document.getElementById('u-stats').style.display = '';
+    document.getElementById('posts-h').style.display = '';
+    document.getElementById('u-avatar').innerHTML = PS.avatarHtml(p);
+    document.getElementById('u-name').textContent = p.name;
+    document.title = 'PoolSite — ' + p.name;
+
+    var badges = '';
+    if (p.guest) badges += '<span class="tag off">Gast</span>';
+    else badges += p.gateOpen ? '<span class="tag on">Gate offen</span>' : '<span class="tag off">Gate geschlossen</span>';
+    document.getElementById('u-badges').innerHTML = badges;
+
+    var bioEl = document.getElementById('u-bio');
+    if (p.bio) { bioEl.style.display = ''; bioEl.textContent = '„' + p.bio + '"'; }
+    else { bioEl.style.display = 'none'; }
+
+    var loc = PSI18N.lang() === 'en' ? 'en-US' : 'de-DE';
+    document.getElementById('u-since').textContent = 'Mitglied seit ' +
+      new Date(p.createdAt).toLocaleDateString(loc, { day: '2-digit', month: 'long', year: 'numeric' });
+
+    document.getElementById('u-actions').innerHTML = actionButtons(p);
+
+    document.getElementById('s-posts').textContent = fmt(p.stats.posts);
+    document.getElementById('s-friends').textContent = fmt(p.stats.friends);
+    document.getElementById('s-likes').textContent = fmt(p.stats.likesReceived);
+    document.getElementById('s-comments').textContent = fmt(p.stats.commentsReceived);
+
+    // Eigenes Profil: Bio bearbeiten
+    if (p.relation === 'self') {
+      document.getElementById('edit-card').style.display = '';
+      var inp = document.getElementById('bio-input');
+      if (!inp.value) inp.value = p.bio || '';
+      document.getElementById('bio-count').textContent = inp.value.length;
+    }
+
+    renderPostsList(d.posts);
+  }).catch(function (e) { setErr(e.message); });
+}
+
+function saveBio() {
+  PS.updateSettings({ bio: document.getElementById('bio-input').value }).then(function () {
+    var el = document.getElementById('msg-bio');
+    el.className = 'msg ok';
+    el.textContent = PSI18N.tr('Gespeichert. ✓');
+    return load();
+  }).catch(function (e) {
+    var el = document.getElementById('msg-bio');
+    el.className = 'msg error';
+    el.textContent = e.message;
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  document.getElementById('bio-input').addEventListener('input', function () {
+    document.getElementById('bio-count').textContent = this.value.length;
+  });
+  PS.init().then(function () {
+    if (!PS.me()) { location.href = 'app.html'; return; }
+    if (!profileKey) { profileKey = PS.me().key; }
+    PS.modeBanner();
+    PS.renderNav('');
+    load();
+  });
+});
+</script>
+
+<style>
+  .profile-hero { text-align: center; }
+  .profile-hero .avatar { width: 110px; height: 110px; font-size: 2.4rem; }
+  .u-badges { margin: 8px 0 4px; }
+  .u-bio { color: var(--text); font-size: .98rem; margin: 12px auto 0; max-width: 480px; font-style: italic; }
+  .u-meta { font-family: var(--font-mono); font-size: .78rem; color: var(--muted); margin-top: 12px; }
+  .u-actions { display: flex; gap: 8px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
+  .section-h { font-size: 1.05rem; margin: 26px 0 12px; }
+  .post-meta-line { font-family: var(--font-mono); font-size: .76rem; color: var(--muted); margin-top: 10px; }
+  #edit-card textarea { width: 100%; }
+</style>
+
+</body>
+</html>

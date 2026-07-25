@@ -266,6 +266,13 @@ input:focus, textarea:focus { border-color: var(--aqua); }
   padding: 20px; margin-bottom: 16px;
 }
 .post-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.post-user {
+  display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0;
+  text-decoration: none; color: inherit; border-radius: 8px;
+}
+.post-user:hover .name { color: var(--aqua); }
+.ulink { color: inherit; text-decoration: none; }
+.ulink:hover { color: var(--aqua); text-decoration: underline; text-underline-offset: 3px; }
 .post-head .who { flex: 1; min-width: 0; }
 .post-head .name { font-weight: 700; font-size: .95rem; }
 .post-head .when { color: var(--muted); font-size: .78rem; }

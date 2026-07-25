@@ -22,8 +22,10 @@
   <div class="wrap">
     <div class="chat-wrap">
       <div class="chat-head">
-        <div class="avatar-sm" id="ch-avatar"><span>?</span></div>
-        <div class="name" id="ch-name">—</div>
+        <a class="post-user" href="#" id="ch-profile-link" title="Profil ansehen">
+          <div class="avatar-sm" id="ch-avatar"><span>?</span></div>
+          <div class="name" id="ch-name">—</div>
+        </a>
       </div>
       <div class="chat-box" id="chat-box">
         <div class="chat-empty">Lade Chat…</div>
@@ -62,6 +64,7 @@ function setErr(text) {
 function render(d) {
   document.getElementById('ch-avatar').innerHTML = PS.avatarHtml(d.friend);
   document.getElementById('ch-name').textContent = d.friend.name;
+  document.getElementById('ch-profile-link').href = 'user.html?u=' + d.friend.key;
   document.title = 'PoolSite — Chat mit ' + d.friend.name;
 
   var box = document.getElementById('chat-box');

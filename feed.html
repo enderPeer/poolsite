@@ -350,7 +350,7 @@ function deleteComment(postId, commentId) {
 }
 
 function deletePost(id) {
-  if (!confirm('Beitrag löschen? (Der Burn bleibt — Commitment ist unwiderruflich.)')) return;
+  if (!confirm(PSI18N.tr('Beitrag löschen? (Der Burn bleibt — Commitment ist unwiderruflich.)'
   PS.delPost(id).then(refresh).catch(function (e) { setMsg(e.message, 'error'); });
 }
 
@@ -359,7 +359,7 @@ function commentHtml(post, meKey) {
     return '<div class="comment">' +
       '<div class="avatar-xs">' + PS.avatarHtml(c.author) + '</div>' +
       '<div class="c-body">' +
-        '<div class="c-head"><span class="c-name">' + PS.escapeHtml(c.author.name) + '</span>' +
+        '<div class="c-head"><a class="c-name ulink" href="user.html?u=' + c.authorKey + '">' + PS.escapeHtml(c.author.name) + '</a>' +
         '<span class="c-when">' + PS.timeAgo(c.createdAt) + '</span></div>' +
         '<div class="c-text">' + PS.escapeHtml(c.text) + '</div>' +
       '</div>' +
@@ -419,11 +419,13 @@ function postHtml(p, meKey) {
     var disliked = p.dislikes.indexOf(meKey) >= 0;
     return '<div class="post" data-id="' + p.id + '" data-sig="' + postSig(p, meKey) + '">' +
       '<div class="post-head">' +
-        '<div class="avatar-sm">' + PS.avatarHtml(p.author) + '</div>' +
-        '<div class="who">' +
-          '<div class="name">' + PS.escapeHtml(p.author.name) + '</div>' +
-          '<div class="when">' + PS.timeAgo(p.createdAt) + (p.score ? ' · Score ' + String(p.score).replace('.', ',') : '') + '</div>' +
-        '</div>' +
+        '<a class="post-user" href="user.html?u=' + p.authorKey + '" title="Profil ansehen">' +
+          '<div class="avatar-sm">' + PS.avatarHtml(p.author) + '</div>' +
+          '<div class="who">' +
+            '<div class="name">' + PS.escapeHtml(p.author.name) + '</div>' +
+            '<div class="when">' + PS.timeAgo(p.createdAt) + (p.score ? ' · Score ' + String(p.score).replace('.', ',') : '') + '</div>' +
+          '</div>' +
+        '</a>' +
         friendButton(p.authorKey) +
       '</div>' +
       (p.text ? '<div class="post-text">' + PS.escapeHtml(p.text) + '</div>' : '') +

@@ -185,7 +185,7 @@ function render(d) {
         '<div class="avatar-sm">' + PS.avatarHtml(o.seller) + '</div>' +
         '<div class="who">' +
           '<div class="name">' + fmt(o.amount, 0) + ' PST · ' + fmtCurPrice(o.pricePerToken, o.currency) + '/PST' + (o.mine ? ' <span class="sub2">(dein Angebot)</span>' : '') + '</div>' +
-          '<div class="sub2">' + PS.escapeHtml(o.seller.name) + ' · gesamt ' + fmtCur(o.total, o.currency) + ' · ' + PS.timeAgo(o.createdAt) + '</div>' +
+          '<div class="sub2"><a class="ulink" href="user.html?u=' + o.seller.key + '">' + PS.escapeHtml(o.seller.name) + '</a> · gesamt ' + fmtCur(o.total, o.currency) + ' · ' + PS.timeAgo(o.createdAt) + '</div>' +
         '</div>' +
         '<div class="actions">' + right + '</div></div>';
     }).join('');

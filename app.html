@@ -152,7 +152,8 @@
     </div>
 
     <div class="msg" id="msg-profile"></div>
-    <a class="btn" style="margin-top:20px" href="wallet.html">Wallet öffnen →</a>
+    <a class="btn secondary" style="margin-top:20px" id="public-profile-link" href="user.html">Mein öffentliches Profil ansehen →</a>
+    <a class="btn" style="margin-top:12px" href="wallet.html">Wallet öffnen →</a>
     <button class="btn secondary" style="margin-top:12px" onclick="doLogout()">Abmelden</button>
     <button class="btn danger-ghost" style="margin-top:12px" onclick="doDelete()" id="btn-delete">Konto löschen</button>
   </div>
@@ -320,7 +321,7 @@ function renderInvites() {
 }
 
 function doDelete() {
-  if (!confirm('Konto wirklich endgültig löschen?')) return;
+  if (!confirm(PSI18N.tr('Konto wirklich endgültig löschen?'))) return;
   PS.deleteAccount().then(render);
 }
 
@@ -371,12 +372,13 @@ function render() {
     ? '<span class="tag on">möglich</span>'
     : '<span class="tag off">nicht möglich</span>';
   document.getElementById('pf-since').textContent =
-    new Date(rec.createdAt).toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' });
+    new Date(rec.createdAt).toLocaleDateString(PSI18N.lang() === 'en' ? 'en-US' : 'de-DE', { day: '2-digit', month: 'long', year: 'numeric' });
   document.getElementById('pf-credits').textContent = PS.fmtEur(rec.credits);
   document.getElementById('pf-burn').textContent = PS.fmtEur(rec.burn) + ' (' + rec.actions + ' Aktionen)';
   document.getElementById('pf-tokens').textContent = (rec.tokens || 0).toLocaleString('de-DE', { maximumFractionDigits: 2 }) + ' PST';
   document.getElementById('btn-delete').textContent = guest ? 'Gast-Daten löschen' : 'Konto löschen';
   document.getElementById('avatar').innerHTML = PS.avatarHtml(rec);
+  document.getElementById('public-profile-link').href = 'user.html?u=' + rec.key;
   renderInvites();
 
   // Neuen Nutzern einmalig den Walkthrough zeigen

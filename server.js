@@ -145,7 +145,7 @@ function mePayload(key) {
     createdAt: u.createdAt, avatar: u.avatar || null, guest: !!u.guest,
     credits: u.credits, burn: u.burn, actions: u.actions,
     tokens: u.tokens || 0, startClaimed: !!u.startClaimed,
-    sbtc: u.sbtc || 0,
+    sbtc: u.sbtc || 0, bio: u.bio || null,
     referredBy: u.referredBy || null, referralEarned: u.referralEarned || 0,
     unreadNotifications: (u.notifications || []).filter(n => !n.read).length
   };
@@ -696,6 +696,9 @@ function handleApi(req, res, pathname, body) {
   }
 
   if (pathname === '/api/settings' && req.method === 'POST') {
+    if (body.bio !== undefined) {
+      me.bio = String(body.bio || '').trim().slice(0, 300) || null;
+    }
     if (body.email !== undefined) {
       const em = String(body.email || '').trim();
       if (em && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) return json(res, 400, { error: 'Ungültige E-Mail-Adresse.' });
@@ -943,6 +946,34 @@ function handleApi(req, res, pathname, body) {
       if (out.length >= 20) break;
     }
     return json(res, 200, { users: out });
+  }
+
+  /* Öffentliches Nutzerprofil */
+  const mProfile = pathname.match(/^\/api\/users\/([\w]+)\/profile$/);
+  if (mProfile && req.method === 'GET') {
+    const k2 = mProfile[1];
+    const u = db.users[k2];
+    if (!u) return json(res, 404, { error: 'Nutzer nicht gefunden.' });
+    ensureSocial(u);
+    const theirPosts = db.posts.filter(p => p.author === k2)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    let likesReceived = 0, commentsReceived = 0;
+    theirPosts.forEach(p => { likesReceived += (p.likes || []).length; commentsReceived += (p.comments || []).length; });
+    return json(res, 200, {
+      profile: {
+        key: k2, name: u.name, avatar: u.avatar || null, bio: u.bio || null,
+        createdAt: u.createdAt, guest: !!u.guest,
+        gateOpen: u.actions > 0 && alphaHat(u) >= RHO,
+        stats: {
+          posts: theirPosts.length,
+          friends: (u.friends || []).length,
+          likesReceived: likesReceived,
+          commentsReceived: commentsReceived
+        },
+        relation: k2 === key ? 'self' : relationTo(k2)
+      },
+      posts: theirPosts.slice(0, 50).map(postPayload)
+    });
   }
 
   if (pathname === '/api/friends' && req.method === 'GET') {

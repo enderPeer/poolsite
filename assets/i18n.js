@@ -334,6 +334,20 @@ var PSI18N = (function () {
     'Bitte wähle eine Bilddatei aus.': 'Please choose an image file.',
     'Bitte wähle eine Videodatei aus.': 'Please choose a video file.',
 
+    /* Nutzerprofil */
+    '← Zurück zum Feed': '← Back to feed',
+    'Erhaltene Likes': 'Likes received',
+    'Erhaltene Kommentare': 'Comments received',
+    'Über mich': 'About me',
+    'Erzähl der Community etwas über dich — sichtbar auf deinem öffentlichen Profil (max. 300 Zeichen).': 'Tell the community about yourself — shown on your public profile (max. 300 characters).',
+    'Erzähl etwas über dich…': 'Tell something about yourself…',
+    'Gate offen': 'Gate open', 'Gate geschlossen': 'Gate closed', 'Gast': 'Guest',
+    'Noch keine Beiträge.': 'No posts yet.',
+    'Konto verwalten': 'Manage account',
+    'Mein öffentliches Profil ansehen →': 'View my public profile →',
+    'Profil ansehen': 'View profile',
+    'Nutzer nicht gefunden.': 'User not found.',
+
     /* Häufige Meldungen (Client) */
     'Schreib etwas oder füge ein Bild/Video hinzu.': 'Write something or add an image/video.',
     'Link kopiert:': 'Link copied:',
@@ -402,7 +416,8 @@ var PSI18N = (function () {
     [/^Like\/Dislike (.+) · Kommentar (.+)$/, 'Like/Dislike $1 · Comment $2'],
     [/^Kommentieren \((.+)\)…$/, 'Comment ($1)…'],
     /* Chat & Titel */
-    [/^PoolSite — Chat mit (.+)$/, 'PoolSite — Chat with $1']
+    [/^PoolSite — Chat mit (.+)$/, 'PoolSite — Chat with $1'],
+    [/^Mitglied seit /, 'Member since ']
   ];
 
   function translateString(s) {

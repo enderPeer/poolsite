@@ -73,9 +73,11 @@ function setMsg(text, type) {
 
 function row(u, actionsHtml, sub) {
   return '<div class="friend-row">' +
-    '<div class="avatar-sm">' + PS.avatarHtml(u) + '</div>' +
-    '<div class="who"><div class="name">' + PS.escapeHtml(u.name) + (u.unread ? '<span class="unread-badge">' + u.unread + '</span>' : '') + '</div>' +
-    (sub ? '<div class="sub2">' + sub + '</div>' : '') + '</div>' +
+    '<a class="post-user" href="user.html?u=' + u.key + '" title="Profil ansehen" style="flex:1; min-width:0">' +
+      '<div class="avatar-sm">' + PS.avatarHtml(u) + '</div>' +
+      '<div class="who"><div class="name">' + PS.escapeHtml(u.name) + (u.unread ? '<span class="unread-badge">' + u.unread + '</span>' : '') + '</div>' +
+      (sub ? '<div class="sub2">' + sub + '</div>' : '') + '</div>' +
+    '</a>' +
     '<div class="actions">' + actionsHtml + '</div></div>';
 }
 
@@ -108,7 +110,7 @@ function request(k) {
 function accept(k) { PS.acceptFriend(k).then(function () { refresh(); if (document.getElementById('search-q').value.trim().length >= 2) doSearch(); }).catch(function (e) { setMsg(e.message, 'error'); }); }
 function decline(k) { PS.declineFriend(k).then(refresh).catch(function (e) { setMsg(e.message, 'error'); }); }
 function remove(k) {
-  if (!confirm('Freundschaft wirklich beenden?')) return;
+  if (!confirm(PSI18N.tr('Freundschaft wirklich beenden?'))) return;
   PS.unfriend(k).then(refresh).catch(function (e) { setMsg(e.message, 'error'); });
 }
 
