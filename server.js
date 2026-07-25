@@ -324,10 +324,12 @@ function distribute() {
     let total = 0;
     for (const k of Object.keys(weights)) total += weights[k];
     if (total > 0) {
+      let credited = 0; // tatsächlich gutgeschriebene Token (Rundungsrest -> Carryover)
       for (const k of Object.keys(weights)) {
         const u = db.users[k];
         if (!u) continue;
         const amt = Math.round(pool * weights[k] / total * 100) / 100;
+        credited = Math.round((credited + amt) * 100) / 100;
         let net = amt;
         // Referral: 10 % gehen an die Person, die diesen Nutzer eingeladen hat
         const ref = u.referredBy ? db.users[u.referredBy] : null;
@@ -346,8 +348,8 @@ function distribute() {
         addHistory(u, next, net);
         notify(k, 'tokens', 'Tagesverteilung ' + next + ': +' + net + ' PST für dein Engagement.');
       }
-      db.meta.totalDistributed = Math.round((db.meta.totalDistributed + pool) * 100) / 100;
-      db.meta.carryover = 0;
+      db.meta.totalDistributed = Math.round((db.meta.totalDistributed + credited) * 100) / 100;
+      db.meta.carryover = Math.max(0, Math.round((pool - credited) * 100) / 100); // Rundungsstaub wandert in den nächsten Tag
     } else {
       db.meta.carryover = pool; // kein anspruchsberechtigtes Gewicht -> Übertrag
     }

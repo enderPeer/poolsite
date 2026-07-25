@@ -324,10 +324,10 @@ function doReact(id, kind) {
 
 function toggleComments(id) {
   openComments[id] = !openComments[id];
-  renderPosts(lastPosts); // aus dem Cache neu zeichnen, kein erneuter Abruf/Sortierwechsel
+  renderPosts(lastPosts); // chirurgisches Update: nur dieser Beitrag wird ersetzt, kein Scroll-Sprung
   if (openComments[id]) {
     var inp = document.getElementById('c-input-' + id);
-    if (inp) inp.focus();
+    if (inp) inp.focus({ preventScroll: false });
   }
 }
 
@@ -375,14 +375,10 @@ function commentHtml(post, meKey) {
 }
 
 var lastPosts = [];
-var lastSig = null;
 
-function feedSignature(posts, meKey) {
-  return meKey + '|' + feedOpts.sort + feedOpts.type + feedOpts.range + (feedOpts.friends ? 'F' : '') + '|' +
-    Object.keys(openComments).filter(function (k) { return openComments[k]; }).sort().join(',') + '|' +
-    posts.map(function (p) {
-      return p.id + ':' + p.likes.length + ':' + p.dislikes.length + ':' + p.comments.length + ':' + (p.score || 0);
-    }).join(',');
+function postSig(p, meKey) {
+  return p.likes.length + ':' + p.dislikes.length + ':' + p.comments.length + ':' + (p.score || 0) +
+    ':' + (openComments[p.id] ? 1 : 0) + ':' + (p.likes.indexOf(meKey) >= 0 ? 'L' : '') + (p.dislikes.indexOf(meKey) >= 0 ? 'D' : '');
 }
 
 function renderPosts(posts) {
@@ -391,21 +387,36 @@ function renderPosts(posts) {
   var meKey = me ? me.key : null;
   lastPosts = posts;
 
-  // Nur neu zeichnen, wenn sich wirklich etwas geändert hat — verhindert das
-  // periodische Neuladen/Flackern des ganzen Feeds durch das 10-Sekunden-Intervall
-  var sig = feedSignature(posts, meKey);
-  if (sig === lastSig) return;
-  lastSig = sig;
-
   if (!posts.length) {
     host.innerHTML = '<div class="feed-empty">Noch keine Beiträge. Sei die erste Stimme im Feed! 🚀</div>';
     return;
   }
 
-  host.innerHTML = posts.map(function (p) {
+  // Gleiche Reihenfolge wie im DOM? Dann nur veränderte Beiträge ersetzen —
+  // kein Komplett-Neuaufbau, kein Scroll-Sprung, keine neu ladenden Medien.
+  var domPosts = host.querySelectorAll('.post[data-id]');
+  var sameOrder = domPosts.length === posts.length && posts.every(function (p, i) {
+    return domPosts[i].getAttribute('data-id') === p.id;
+  });
+  if (sameOrder) {
+    posts.forEach(function (p, i) {
+      var sig = postSig(p, meKey);
+      if (domPosts[i].getAttribute('data-sig') !== sig) {
+        var tmp = document.createElement('div');
+        tmp.innerHTML = postHtml(p, meKey);
+        host.replaceChild(tmp.firstChild, domPosts[i]);
+      }
+    });
+    return;
+  }
+
+  host.innerHTML = posts.map(function (p) { return postHtml(p, meKey); }).join('');
+}
+
+function postHtml(p, meKey) {
     var liked = p.likes.indexOf(meKey) >= 0;
     var disliked = p.dislikes.indexOf(meKey) >= 0;
-    return '<div class="post">' +
+    return '<div class="post" data-id="' + p.id + '" data-sig="' + postSig(p, meKey) + '">' +
       '<div class="post-head">' +
         '<div class="avatar-sm">' + PS.avatarHtml(p.author) + '</div>' +
         '<div class="who">' +
@@ -428,7 +439,6 @@ function renderPosts(posts) {
       '</div>' +
       (openComments[p.id] ? commentHtml(p, meKey) : '') +
     '</div>';
-  }).join('');
 }
 
 document.addEventListener('DOMContentLoaded', function () {
