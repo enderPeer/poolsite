@@ -216,6 +216,8 @@ const MAIL_CONFIG_FILE = path.join(DATA_DIR, 'mail-config.json');
 function mailConfig() {
   try {
     const c = JSON.parse(fs.readFileSync(MAIL_CONFIG_FILE, 'utf8'));
+    // Gmail zeigt App-Passwoerter mit Leerzeichen an — SMTP erwartet sie ohne
+    if (c.pass && String(c.host).indexOf('gmail') >= 0) c.pass = String(c.pass).replace(/\s+/g, '');
     if (c.host && c.user && c.pass && c.pass.indexOf('HIER-') < 0) return c;
   } catch (e) {}
   return null;

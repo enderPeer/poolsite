@@ -350,7 +350,7 @@ function deleteComment(postId, commentId) {
 }
 
 function deletePost(id) {
-  if (!confirm(PSI18N.tr('Beitrag löschen? (Der Burn bleibt — Commitment ist unwiderruflich.)'
+  if (!confirm(PSI18N.tr('Beitrag löschen? (Der Burn bleibt — Commitment ist unwiderruflich.)'))) return;
   PS.delPost(id).then(refresh).catch(function (e) { setMsg(e.message, 'error'); });
 }
 
