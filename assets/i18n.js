@@ -261,6 +261,79 @@ var PSI18N = (function () {
     'Als Gast kannst du den Markt ansehen, aber nicht handeln. Lass dich von einem Mitglied einladen, um Token zu kaufen und zu verkaufen.':
       'As a guest you can view the market but not trade. Get invited by a member to buy and sell tokens.',
 
+    /* Lokal-Modus-Hinweise */
+    'Nur im Live-Modus verfügbar': 'Only available in live mode',
+    'Freunde & Chat laufen über den PoolSite-Server. Öffne die App über die Server-URL.': 'Friends & chat run on the PoolSite server. Open the app via the server URL.',
+    'Der Markt läuft über den PoolSite-Server. Öffne die App über die Server-URL.': 'The market runs on the PoolSite server. Open the app via the server URL.',
+    'Mitteilungen kommen vom PoolSite-Server.': 'Notifications come from the PoolSite server.',
+    'Die Key Numbers kommen vom PoolSite-Server. Aktuell ist kein Server erreichbar — öffne die App über die Server-URL, um die Statistiken zu sehen.': 'Key numbers come from the PoolSite server. No server is reachable right now — open the app via the server URL to see the statistics.',
+
+    /* Freunde */
+    'Nutzername suchen (min. 2 Zeichen)…': 'Search username (min. 2 characters)…',
+    '＋ Anfragen': '＋ Request',
+    'Bitte mindestens 2 Zeichen eingeben.': 'Please enter at least 2 characters.',
+    'Anfrage gesendet. ✓': 'Request sent. ✓',
+    'Freundschaftsanfrage gesendet. ✓': 'Friend request sent. ✓',
+    'Ihr seid jetzt befreundet! 🎉': 'You are now friends! 🎉',
+    'Freundschaft wirklich beenden?': 'Really end this friendship?',
+    'Ihr seid nicht befreundet.': 'You are not friends.',
+
+    /* Markt */
+    'Handle PST-Token direkt mit anderen Nutzern — bezahlt wird mit EUR-Credits. Pro Verkauf fällt die Plattformgebühr von': 'Trade PST tokens directly with other users — paid in EUR credits. Each sale carries a platform fee of',
+    '% an (zählt beim Verkäufer als Burn).': '% (counted as burn for the seller).',
+    'Deine Token wandern bis zum Verkauf oder Rückzug in ein Treuhand-Depot.': 'Your tokens are held in escrow until sold or withdrawn.',
+    'Preis pro Token (': 'Price per token (',
+    'Erlös:': 'Proceeds:',
+    'Angebot eingestellt — deine Token liegen im Treuhand-Depot. ✓': 'Offer created — your tokens are in escrow. ✓',
+    'Angebot zurückgezogen — Token sind wieder frei. ✓': 'Offer withdrawn — tokens released. ✓',
+    'Mindestmenge: 1 PST.': 'Minimum amount: 1 PST.',
+    'Preis pro Token: 0,0001 € bis 1.000 €.': 'Price per token: €0.0001 to €1,000.',
+    'Du kannst dein eigenes Angebot nicht kaufen.': 'You cannot buy your own offer.',
+    'Angebot nicht mehr verfügbar.': 'Offer no longer available.',
+    'Nur für volle Konten — Gäste können nicht mit Token handeln.': 'Full accounts only — guests cannot trade tokens.',
+
+    /* Wallet */
+    'Um 00:00 UTC werden': 'At 00:00 UTC,',
+    'PST nach Punktesystem verteilt (Engagement auf deinen Inhalten × Standing der Interagierenden)': 'PST are distributed by the points system (engagement on your content × standing of the engagers)',
+    'Bestimmt deinen Anteil an den 5.000 Token pro Tag: Burn (Einsatz) → Rate → Standing → Gate → Gewicht. Dein Burn entsteht aus deinen echten bezahlten Aktionen in der App.': 'Determines your share of the 5,000 daily tokens: burn (stake) → rate → standing → gate → weight. Your burn comes from your real paid actions in the app.',
+    'Simuliertes Bitcoin ohne echten Wert. Verbranntes sBTC geht unwiderruflich an die Dead-Address und wird zu EUR-Credits (Kurs: 1 sBTC = 100.000 €).': 'Simulated Bitcoin with no real value. Burned sBTC goes irreversibly to the dead address and becomes EUR credits (rate: 1 sBTC = €100,000).',
+    'Dead-Address:': 'Dead address:',
+    'Menge, z. B. 0,0001': 'Amount, e.g. 0.0001',
+    '0,0002 sBTC gutgeschrieben. ✓': '0.0002 sBTC credited. ✓',
+    'Faucet heute schon genutzt — morgen wieder.': 'Faucet already used today — come back tomorrow.',
+    'Nur für volle Konten — der Gast-Zugang ist zum Umsehen da. Lass dich einladen, um mitzumachen.': 'Full accounts only — guest access is for looking around. Get invited to participate.',
+    'Nur für volle Konten — der Gast-Zugang ist zum Umsehen da.': 'Full accounts only — guest access is for looking around.',
+
+    /* Profil, Einladungen & Registrierung */
+    'PoolSite ist einladungsbasiert: Registrieren geht nur mit dem Code eines Mitglieds. Eingeladene Konten starten mit 10 € Guthaben; 10 % ihrer verdienten Token gehen an die einladende Person.': 'PoolSite is invite-only: registration requires a member’s code. Invited accounts start with a €10 balance; 10% of their earned tokens go to the inviter.',
+    '2–30 Zeichen. Beginnt mit Buchstabe/Zahl; erlaubt sind Buchstaben, Zahlen, Punkt, Unterstrich.': '2–30 characters. Starts with a letter/digit; letters, digits, dot and underscore allowed.',
+    '(freiwillig — nur für den Passwort-Reset)': '(optional — only for password reset)',
+    '(freiwillig)': '(optional)',
+    '(leer lassen zum Entfernen)': '(leave empty to remove)',
+    'Datenschutz:': 'Privacy:',
+    'Deine Adresse wird': 'Your address is',
+    'Die Adresse wird nicht gespeichert — nur ein verschlüsselter Fingerabdruck für den Passwort-Reset.': 'The address is not stored — only an encrypted fingerprint for password reset.',
+    'nicht gespeichert': 'not stored',
+    '— nur ein verschlüsselter Fingerabdruck. Beim Passwort-Reset gibst du sie erneut ein; nur bei Übereinstimmung wird ein Code dorthin geschickt. Ohne E-Mail ist kein Passwort-Reset möglich.': '— only an encrypted fingerprint. During password reset you enter it again; a code is only sent if it matches. Without an email, no password reset is possible.',
+    '— nur ein verschlüsselter Fingerabdruck. Beim Passwort-Reset gibst du sie erneut ein; nur bei Übereinstimmung wird ein Code dorthin geschickt. Deshalb kann sie hier auch nicht angezeigt werden.': '— only an encrypted fingerprint. During password reset you enter it again; a code is only sent if it matches. That is also why it cannot be displayed here.',
+    'Du bist als Gast unterwegs. Wandle deinen Zugang in ein echtes Konto um, indem du einen Nutzernamen und ein Passwort festlegst — dein Profilbild und deine Beiträge bleiben erhalten.': 'You are browsing as a guest. Convert your access into a full account by choosing a username and password — your profile picture and posts are kept.',
+    'Auch die Umwandlung braucht eine Einladung — dafür gibt es 10 € Startguthaben.': 'Conversion also requires an invite — it comes with €10 starting credit.',
+    'Registrieren geht nur per Einladung. Du erhältst 10 % der Token, die deine Eingeladenen verdienen. Preis:': 'Registration is invite-only. You earn 10% of the tokens your invitees earn. Price:',
+    'pro Platz (zählt als Burn).': 'per seat (counts as burn).',
+    'Noch keine Einladungslinks.': 'No invite links yet.',
+    'Konto wirklich endgültig löschen?': 'Really delete this account permanently?',
+    'Plätze: 1 bis 100.': 'Seats: 1 to 100.',
+    'Nur volle Konten können Einladungen erstellen.': 'Only full accounts can create invites.',
+
+    /* Feed */
+    '/500 · Posten kostet': '/500 · posting costs',
+    'Schreib erst etwas, bevor du postest.': 'Write something before posting.',
+    'Video wird auf deinem Gerät komprimiert (max. 7 s)…': 'Compressing video on your device (max 7 s)…',
+    'Beitrag löschen? (Der Burn bleibt — Commitment ist unwiderruflich.)': 'Delete post? (The burn stays — commitment is irreversible.)',
+    'Kommentar löschen': 'Delete comment', 'Beitrag löschen?': 'Delete post?',
+    'Bitte wähle eine Bilddatei aus.': 'Please choose an image file.',
+    'Bitte wähle eine Videodatei aus.': 'Please choose a video file.',
+
     /* Häufige Meldungen (Client) */
     'Schreib etwas oder füge ein Bild/Video hinzu.': 'Write something or add an image/video.',
     'Link kopiert:': 'Link copied:',
@@ -303,14 +376,42 @@ var PSI18N = (function () {
     [/erhalten, abzgl\. Gebühr\)\./g, 'received, net of fee).'],
     [/· Score /g, ' · score '],
     [/(\d+) \/ (\d+) Plätze genutzt/g, '$1 / $2 seats used'],
-    [/— voll$/, '— full']
+    [/— voll$/, '— full'],
+    /* Markt & Wallet dynamisch */
+    [/ · gesamt /g, ' · total '],
+    [/ PST zu /g, ' PST at '],
+    [/^davon (.+) für dich nach (\d+) % Gebühr$/, '$1 for you after $2% fee'],
+    [/^Gekauft: (.+) PST\. ✓$/, 'Bought: $1 PST. ✓'],
+    [/^Nicht genug Guthaben — Kauf kostet (.+)\.$/, 'Insufficient balance — this purchase costs $1.'],
+    [/^Nicht genug Token — du hast (.+)\.$/, 'Not enough tokens — you have $1.'],
+    [/^Ungültige Menge \(verfügbar: (.+) PST\)\.$/, 'Invalid amount (available: $1 PST).'],
+    [/^Nicht genug sBTC — du hast (.+)\.$/, 'Not enough sBTC — you have $1.'],
+    [/sBTC an (.+) verbrannt → \+(.+) Credits\. ✓$/, 'sBTC burned to $1 → +$2 credits. ✓'],
+    [/^Dein Standing liegt unter der Schwelle ρ = 0,2: Deine Interaktionen zählen aktuell nicht als Gewicht für andere\. Dir fehlen noch (.+) Burn \(bei (.+) Aktionen\), um das Gate zu öffnen\.$/,
+      'Your standing is below the threshold ρ = 0.2: your interactions currently carry no weight for others. You need $1 more burn (at $2 actions) to open the gate.'],
+    /* Einladungen & Profil dynamisch */
+    [/^Link kaufen \((.+)\)$/, 'Buy link ($1)'],
+    [/^Von dir eingeladen: /, 'Invited by you: '],
+    [/\(([\d.,]+) PST erhalten\)/g, '($1 PST received)'],
+    [/^Einladung erstellt — Code: (.+)\. Link ist unten kopierbar\.$/, 'Invite created — code: $1. Copy the link below.'],
+    [/^Willkommen, (.+)! Dein Konto ist jetzt aktiv\. ✓$/, 'Welcome, $1! Your account is now active. ✓'],
+    [/^Nicht genug Guthaben — (\d+) Plätze kosten (.+)\.$/, 'Insufficient balance — $1 seats cost $2.'],
+    /* Feed dynamisch */
+    [/^Feed konnte nicht geladen werden: /, 'Feed could not be loaded: '],
+    [/ KB → (\d+) KB \((\d+) % gespart\)/g, ' KB → $1 KB ($2% saved)'],
+    [/^Like\/Dislike (.+) · Kommentar (.+)$/, 'Like/Dislike $1 · Comment $2'],
+    [/^Kommentieren \((.+)\)…$/, 'Comment ($1)…'],
+    /* Chat & Titel */
+    [/^PoolSite — Chat mit (.+)$/, 'PoolSite — Chat with $1']
   ];
 
   function translateString(s) {
     var trimmed = s.trim();
     if (!trimmed) return null;
-    if (D.hasOwnProperty(trimmed)) {
-      var res = s.replace(trimmed, D[trimmed]);
+    // Whitespace normalisieren, damit auch mehrzeilige HTML-Texte matchen
+    var norm = trimmed.replace(/\s+/g, ' ');
+    if (D.hasOwnProperty(norm)) {
+      var res = s.replace(trimmed, D[norm]);
       return res !== s ? res : null; // Identitäts-Übersetzungen nie zurückgeben (sonst Observer-Schleife)
     }
     var out = s, hit = false;
@@ -367,5 +468,11 @@ var PSI18N = (function () {
 
   document.addEventListener('DOMContentLoaded', apply);
 
-  return { lang: lang, setLang: setLang, toggle: toggle, apply: apply, t: translateString };
+  function tr(s) { // für confirm()/prompt(): übersetzt wenn möglich, sonst Original
+    if (lang() !== 'en') return s;
+    var t = translateString(s);
+    return t !== null ? t : s;
+  }
+
+  return { lang: lang, setLang: setLang, toggle: toggle, apply: apply, t: translateString, tr: tr };
 })();

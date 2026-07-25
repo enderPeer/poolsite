@@ -33,7 +33,8 @@ var PS = (function () {
     var m = Math.floor(s / 60); if (m < 60) return 'vor ' + m + ' Min.';
     var h = Math.floor(m / 60); if (h < 24) return 'vor ' + h + ' Std.';
     var d = Math.floor(h / 24); if (d < 7) return 'vor ' + d + ' Tag' + (d > 1 ? 'en' : '');
-    return new Date(iso).toLocaleDateString('de-DE');
+    var loc = (typeof PSI18N !== 'undefined' && PSI18N.lang() === 'en') ? 'en-US' : 'de-DE';
+    return new Date(iso).toLocaleDateString(loc);
   }
   // Medien-Pfade (/media/...) müssen vom API-Server geladen werden, auch wenn
   // das Frontend auf einer anderen Adresse läuft (z. B. GitHub Pages + Tunnel-API).
