@@ -131,9 +131,18 @@ node server.js
 "C:\Program Files (x86)\cloudflared\cloudflared.exe" tunnel --url http://localhost:3000
 ```
 
-**Nach jedem Neustart** ändert sich die Tunnel-URL → in `index.html` die
+**Automatischer Neustart:** Eine geplante Aufgabe „PoolSite Watchdog" führt alle
+2 Minuten `watchdog.ps1` aus. Das Skript prüft `http://localhost:3000/api/health`
+und startet den Server über `run-server.bat` neu, falls er nicht antwortet (Logs in
+`watchdog.log` / `server.log`). Läuft, solange der Nutzer angemeldet ist. Für Betrieb
+auch bei abgemeldetem Nutzer: in der Aufgabenplanung „Unabhängig von der
+Benutzeranmeldung ausführen" setzen (verlangt das Windows-Passwort, einmalig).
+Aufgabe entfernen: `schtasks /delete /tn "PoolSite Watchdog" /f`.
+
+**Nach jedem Tunnel-Neustart** ändert sich die Tunnel-URL → in `index.html` die
 `trycloudflare`-Links aktualisieren (3 Stellen) und `git push` (GitHub Pages
-deployt automatisch in ~1 Min).
+deployt automatisch in ~1 Min). Der Watchdog verwaltet nur den Server, nicht den
+Tunnel (ein Tunnel-Neustart würde die URL ändern).
 
 **E-Mail-Versand:** `data/mail-config.json` — Gmail-Adresse + App-Passwort
 (myaccount.google.com → Sicherheit → App-Passwörter). Ohne gültige Konfiguration
