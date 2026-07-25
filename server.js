@@ -127,7 +127,8 @@ function mePayload(key) {
     credits: u.credits, burn: u.burn, actions: u.actions,
     tokens: u.tokens || 0, startClaimed: !!u.startClaimed,
     sbtc: u.sbtc || 0,
-    referredBy: u.referredBy || null, referralEarned: u.referralEarned || 0
+    referredBy: u.referredBy || null, referralEarned: u.referralEarned || 0,
+    unreadNotifications: (u.notifications || []).filter(n => !n.read).length
   };
 }
 
@@ -256,6 +257,21 @@ function sendMail(cfg, to, subject, text) {
   });
 }
 
+/* Mitteilungen: pro Nutzer eine kleine Timeline (letzte 50) */
+function notify(userKey, type, text, fromKey) {
+  const u = db.users[userKey];
+  if (!u || userKey === fromKey) return;
+  u.notifications = u.notifications || [];
+  // Chat-Nachrichten nicht stapeln: eine ungelesene Meldung pro Absender reicht
+  if (type === 'chat' && u.notifications.some(n => !n.read && n.type === 'chat' && n.from === fromKey)) return;
+  u.notifications.push({ id: newId('n'), type: type, text: text, from: fromKey || null, at: new Date().toISOString(), read: false });
+  if (u.notifications.length > 50) u.notifications = u.notifications.slice(-50);
+}
+function snippet(s) {
+  s = String(s || '').trim();
+  return s.length > 40 ? s.slice(0, 40) + '…' : s;
+}
+
 function findOpenInvite(code) {
   const inv = db.invites[String(code || '').trim()];
   if (!inv || inv.seatsUsed >= inv.seatsTotal || !db.users[inv.owner]) return null;
@@ -323,10 +339,12 @@ function distribute() {
             ref.referralEarned = Math.round(((ref.referralEarned || 0) + cut) * 100) / 100;
             addHistory(ref, next, cut);
             u.referralContributed = Math.round(((u.referralContributed || 0) + cut) * 100) / 100;
+            notify(u.referredBy, 'tokens', 'Referral: +' + cut + ' PST von ' + u.name + ' (Verteilung ' + next + ').');
           }
         }
         u.tokens = Math.round(((u.tokens || 0) + net) * 100) / 100;
         addHistory(u, next, net);
+        notify(k, 'tokens', 'Tagesverteilung ' + next + ': +' + net + ' PST für dein Engagement.');
       }
       db.meta.totalDistributed = Math.round((db.meta.totalDistributed + pool) * 100) / 100;
       db.meta.carryover = 0;
@@ -373,7 +391,7 @@ function handleApi(req, res, pathname, body) {
     const rec = newUserRecord(name, sha(k + ':' + pass), email, false);
     rec.credits = START_CREDITS;      // 10 € Startguthaben für eingeladene Konten
     rec.startClaimed = true;
-    if (inv) { rec.referredBy = inv.owner; inv.seatsUsed += 1; }
+    if (inv) { rec.referredBy = inv.owner; inv.seatsUsed += 1; notify(inv.owner, 'invite', name + ' ist über deine Einladung beigetreten.'); }
     db.users[k] = rec;
     const token = newId('tok');
     db.sessions[token] = k;
@@ -554,6 +572,17 @@ function handleApi(req, res, pathname, body) {
 
   if (pathname === '/api/me' && req.method === 'GET') return json(res, 200, { me: mePayload(key) });
 
+  if (pathname === '/api/notifications' && req.method === 'GET') {
+    const list = (me.notifications || []).slice().reverse();
+    return json(res, 200, { notifications: list, me: mePayload(key) });
+  }
+
+  if (pathname === '/api/notifications/read' && req.method === 'POST') {
+    (me.notifications || []).forEach(n => { n.read = true; });
+    saveDb();
+    return json(res, 200, { me: mePayload(key) });
+  }
+
   if (pathname === '/api/logout' && req.method === 'POST') {
     for (const t of Object.keys(db.sessions)) if (db.sessions[t] === key) delete db.sessions[t];
     saveDb();
@@ -610,7 +639,7 @@ function handleApi(req, res, pathname, body) {
       db.users[nk].credits = round2((db.users[nk].credits || 0) + START_CREDITS);
       db.users[nk].startClaimed = true;
     }
-    if (inv) { db.users[nk].referredBy = inv.owner; inv.seatsUsed += 1; }
+    if (inv) { db.users[nk].referredBy = inv.owner; inv.seatsUsed += 1; notify(inv.owner, 'invite', name + ' ist über deine Einladung beigetreten.'); }
     delete db.users[key];
     db.posts.forEach(p => {
       if (p.author === key) p.author = nk;
@@ -846,6 +875,9 @@ function handleApi(req, res, pathname, body) {
     me.tokens = round2((me.tokens || 0) + amt);
     offer.amount = round2(offer.amount - amt);
     if (offer.amount < 0.01) db.offers = db.offers.filter(o => o.id !== offer.id);
+    notify(offer.seller, 'trade',
+      me.name + ' hat ' + amt + ' PST aus deinem Angebot gekauft (' +
+      (cur === 'SBTC' ? total.toFixed(8) + ' sBTC' : total.toFixed(2).replace('.', ',') + ' €') + ' erhalten, abzgl. Gebühr).', key);
     db.trades.push({ id: newId('tr'), buyer: key, seller: offer.seller, amount: amt, pricePerToken: offer.pricePerToken, currency: cur, total: total, at: new Date().toISOString() });
     if (db.trades.length > 500) db.trades = db.trades.slice(-500);
     stat(null, 0, key);
@@ -905,10 +937,12 @@ function handleApi(req, res, pathname, body) {
       db.friendRequests.splice(reverse, 1);
       ensureSocial(target);
       me.friends.push(to); target.friends.push(key);
+      notify(to, 'friend', me.name + ' und du seid jetzt befreundet.', key);
       saveDb();
       return json(res, 200, { ok: true, becameFriends: true });
     }
     db.friendRequests.push({ from: key, to: to, at: new Date().toISOString() });
+    notify(to, 'friend_request', me.name + ' hat dir eine Freundschaftsanfrage geschickt.', key);
     saveDb();
     return json(res, 200, { ok: true, becameFriends: false });
   }
@@ -923,6 +957,7 @@ function handleApi(req, res, pathname, body) {
       ensureSocial(me); ensureSocial(other);
       if (me.friends.indexOf(from) < 0) me.friends.push(from);
       if (other.friends.indexOf(key) < 0) other.friends.push(key);
+      notify(from, 'friend', me.name + ' hat deine Freundschaftsanfrage angenommen.', key);
     }
     saveDb();
     return json(res, 200, { ok: true });
@@ -970,6 +1005,7 @@ function handleApi(req, res, pathname, body) {
     const text = String(body.text || '').trim().slice(0, 1000);
     if (!text) return json(res, 400, { error: 'Leere Nachricht.' });
     db.messages.push({ id: newId('m'), from: key, to: other, text: text, at: new Date().toISOString() });
+    notify(other, 'chat', 'Neue Nachricht von ' + me.name + '.', key);
     stat(null, 0, key);
     saveDb();
     return json(res, 200, { ok: true });
@@ -1022,6 +1058,8 @@ function handleApi(req, res, pathname, body) {
       logEvent(kind === 'likes' ? 'like' : 'dislike', key, p.author);
       stat(kind, 1, key);
       stat('burn', kind === 'likes' ? PRICES.like : PRICES.dislike);
+      notify(p.author, kind === 'likes' ? 'like' : 'dislike',
+        me.name + (kind === 'likes' ? ' gefällt dein Beitrag' : ' hat deinen Beitrag gedislikt') + (p.text ? ': „' + snippet(p.text) + '"' : '.'), key);
     }
     saveDb();
     return json(res, 200, { me: mePayload(key), post: postPayload(p) });
@@ -1040,6 +1078,7 @@ function handleApi(req, res, pathname, body) {
     logEvent('comment', key, p.author);
     stat('comments', 1, key);
     stat('burn', PRICES.comment);
+    notify(p.author, 'comment', me.name + ' hat kommentiert: „' + snippet(text) + '"', key);
     saveDb();
     return json(res, 200, { me: mePayload(key), post: postPayload(p) });
   }

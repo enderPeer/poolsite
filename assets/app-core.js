@@ -392,6 +392,16 @@ var PS = (function () {
     show();
   }
 
+  /* Mitteilungen — nur im Live-Modus */
+  function notifications() {
+    if (mode !== 'server') return Promise.resolve({ local: true, notifications: [] });
+    return call('/api/notifications').then(function (d) { cachedMe = d.me; return d; });
+  }
+  function markNotificationsRead() {
+    if (mode !== 'server') return Promise.resolve();
+    return call('/api/notifications/read', 'POST', {}).then(function (d) { cachedMe = d.me; });
+  }
+
   /* Einladungen — nur im Live-Modus */
   function invites() {
     if (mode !== 'server') return Promise.resolve({ local: true, invites: [], invitees: [], seatPrice: 2, referralPct: 10 });
@@ -558,18 +568,21 @@ var PS = (function () {
   function renderNav(active) {
     var host = document.getElementById('app-nav');
     if (!host) return;
+    var unread = cachedMe ? (cachedMe.unreadNotifications || 0) : 0;
     var tabs = [
       { id: 'profile', label: 'Profil', href: 'app.html' },
       { id: 'wallet', label: 'Wallet', href: 'wallet.html' },
       { id: 'market', label: 'Markt', href: 'market.html' },
       { id: 'feed', label: 'Feed', href: 'feed.html' },
       { id: 'friends', label: 'Freunde', href: 'friends.html' },
+      { id: 'notifications', label: 'Mitteilungen', href: 'notifications.html', badge: unread },
       { id: 'stats', label: 'Key Numbers', href: 'stats.html' },
       { id: 'settings', label: 'Einstellungen', href: 'settings.html' }
     ];
     var credits = cachedMe ? cachedMe.credits : 0;
     host.innerHTML = '<div class="wrap appnav-inner">' + tabs.map(function (t) {
-      return '<a class="appnav-tab' + (t.id === active ? ' active' : '') + '" href="' + t.href + '">' + t.label + '</a>';
+      return '<a class="appnav-tab' + (t.id === active ? ' active' : '') + '" href="' + t.href + '">' + t.label +
+        (t.badge ? '<span class="nav-badge">' + (t.badge > 9 ? '9+' : t.badge) + '</span>' : '') + '</a>';
     }).join('') + '<span class="appnav-grow"></span>' +
       '<a class="appnav-credits" href="wallet.html" title="Stable-Guthaben">' + fmtEur(credits) + '</a>' +
       '<a class="appnav-post" href="feed.html#neu">＋ Beitrag</a></div>';
@@ -597,6 +610,7 @@ var PS = (function () {
     claimStart: claimStart, wallet: wallet, stats: stats,
     invites: invites, createInvite: createInvite,
     updateSettings: updateSettings, startTour: startTour, tourDone: tourDone,
+    notifications: notifications, markNotificationsRead: markNotificationsRead,
     resetRequest: resetRequest, resetConfirm: resetConfirm,
     market: market, createOffer: createOffer, cancelOffer: cancelOffer, buyOffer: buyOffer,
     btcFaucet: btcFaucet, btcBurn: btcBurn, fmtBtc: fmtBtc,

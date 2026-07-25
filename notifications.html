@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PoolSite — Mitteilungen</title>
+<meta name="description" content="PoolSite Mitteilungen — deine Timeline: Likes, Kommentare, Freunde, Trades und Token.">
+<link rel="stylesheet" href="assets/app.css">
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <a class="logo" href="index.html"><span class="logo-mark">P</span> PoolSite</a>
+    <a class="back" href="index.html">← Zurück zur Website</a>
+  </div>
+</header>
+<div class="beta-banner" id="mode-banner">Verbinde…</div>
+<nav id="app-nav" class="appnav" style="display:none"></nav>
+
+<main>
+  <div class="wrap">
+    <div class="feed-col">
+      <h1 class="page-title">Mitteilungen</h1>
+      <p class="page-sub">Deine Timeline — was seit deinem letzten Besuch passiert ist.</p>
+
+      <div id="local-note" class="chart-card" style="display:none">
+        <h3>Nur im Live-Modus verfügbar</h3>
+        <div class="hint" style="margin-bottom:0">Mitteilungen kommen vom PoolSite-Server.</div>
+      </div>
+
+      <div class="chart-card" id="list-card" style="display:none">
+        <div id="notif-list"><div class="feed-empty">Lade…</div></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="assets/app-core.js"></script>
+<script>
+var TYPE_LABEL = {
+  like: 'Like', dislike: 'Dislike', comment: 'Kommentar',
+  friend_request: 'Anfrage', friend: 'Freunde', chat: 'Chat',
+  trade: 'Handel', tokens: 'Token', invite: 'Einladung'
+};
+var TYPE_LINK = {
+  like: 'feed.html', dislike: 'feed.html', comment: 'feed.html',
+  friend_request: 'friends.html', friend: 'friends.html', chat: 'friends.html',
+  trade: 'market.html', tokens: 'wallet.html', invite: 'app.html'
+};
+
+function dayLabel(iso) {
+  var d = new Date(iso);
+  var today = new Date(); today.setHours(0, 0, 0, 0);
+  var that = new Date(d); that.setHours(0, 0, 0, 0);
+  var diff = Math.round((today - that) / 86400000);
+  if (diff === 0) return 'Heute';
+  if (diff === 1) return 'Gestern';
+  return d.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long' });
+}
+
+function render(list) {
+  var host = document.getElementById('notif-list');
+  if (!list.length) {
+    host.innerHTML = '<div class="feed-empty">Noch keine Mitteilungen — sie erscheinen, sobald etwas passiert: Likes, Kommentare, Freunde, Trades, Token.</div>';
+    return;
+  }
+  var html = '';
+  var lastDay = null;
+  list.forEach(function (n) {
+    var day = dayLabel(n.at);
+    if (day !== lastDay) {
+      html += '<div class="notif-day">' + day + '</div>';
+      lastDay = day;
+    }
+    var time = new Date(n.at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+    html += '<a class="notif-row' + (n.read ? '' : ' unread') + '" href="' + (TYPE_LINK[n.type] || 'app.html') + '">' +
+      '<span class="notif-type">' + (TYPE_LABEL[n.type] || 'Info') + '</span>' +
+      '<span class="notif-text">' + PS.escapeHtml(n.text) + '</span>' +
+      '<span class="notif-time">' + time + '</span>' +
+    '</a>';
+  });
+  host.innerHTML = html;
+}
+
+function refresh(markRead) {
+  return PS.notifications().then(function (d) {
+    if (d.local) {
+      document.getElementById('local-note').style.display = '';
+      document.getElementById('list-card').style.display = 'none';
+      return;
+    }
+    document.getElementById('local-note').style.display = 'none';
+    document.getElementById('list-card').style.display = '';
+    render(d.notifications);
+    PS.renderNav('notifications');
+    // Erst anzeigen (ungelesene hervorgehoben), dann als gelesen markieren -> Badge verschwindet
+    if (markRead && d.notifications.some(function (n) { return !n.read; })) {
+      return PS.markNotificationsRead().then(function () { PS.renderNav('notifications'); });
+    }
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  PS.init().then(function () {
+    if (!PS.me()) { location.href = 'app.html'; return; }
+    PS.modeBanner();
+    PS.renderNav('notifications');
+    refresh(true);
+    if (PS.getMode() === 'server') setInterval(function () { refresh(false); }, 15000);
+  });
+});
+</script>
+
+<style>
+  .notif-day {
+    font-family: var(--font-mono); font-size: .74rem; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--aqua);
+    border-bottom: 1px solid var(--line); padding-bottom: 6px; margin: 20px 0 4px;
+  }
+  .notif-day:first-child { margin-top: 0; }
+  .notif-row {
+    display: flex; gap: 12px; align-items: baseline; text-decoration: none;
+    padding: 11px 8px; border-bottom: 1px solid var(--line); color: var(--text);
+  }
+  .notif-row:hover { background: rgba(255,255,255,.02); }
+  .notif-row:last-child { border-bottom: none; }
+  .notif-row.unread { background: rgba(45,212,191,.05); }
+  .notif-row.unread .notif-type { color: var(--aqua); }
+  .notif-type {
+    flex-shrink: 0; width: 84px; font-family: var(--font-mono); font-size: .72rem;
+    letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
+  }
+  .notif-text { flex: 1; font-size: .92rem; }
+  .notif-time { flex-shrink: 0; font-family: var(--font-mono); font-size: .74rem; color: var(--muted); }
+  @media (max-width: 640px) {
+    .notif-row { flex-wrap: wrap; gap: 6px 10px; }
+    .notif-type { width: auto; }
+    .notif-time { order: 3; }
+    .notif-text { flex-basis: 100%; order: 4; }
+  }
+</style>
+
+</body>
+</html>

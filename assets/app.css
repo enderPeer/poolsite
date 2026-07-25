@@ -64,6 +64,12 @@ header {
 .appnav-tab:hover { color: var(--text); background: rgba(255,255,255,.04); }
 .appnav-tab.active { color: var(--aqua); background: rgba(45,212,191,.1); }
 .appnav-grow { flex: 1; }
+.nav-badge {
+  display: inline-block; min-width: 17px; text-align: center;
+  background: var(--red); color: #fff; border-radius: 999px;
+  font-size: .68rem; font-weight: 700; padding: 1px 5px; margin-left: 6px;
+  font-family: var(--font-mono); vertical-align: 1px;
+}
 .appnav-post {
   padding: 8px 16px; border-radius: 8px; text-decoration: none; white-space: nowrap;
   background: var(--aqua); color: var(--aqua-ink);
