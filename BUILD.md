@@ -17,19 +17,30 @@ Bewusst einfacher Stack — **keine einzige npm-Abhängigkeit**:
 Browser (Vanilla JS, kein Framework)
    │  fetch + Bearer-Token
    ▼
-server.js — ein einzelner Node.js-Prozess (~1.100 Zeilen)
+server.js — ein einzelner Node.js-Prozess (~1.150 Zeilen)
    ├── Statische Dateien (HTML/CSS/JS aus dem Projektordner)
    ├── REST-API unter /api/*
-   ├── /media/* → hochgeladene Videos aus data/media/
+   ├── /media/* → hochgeladene Bilder, Avatare und Videos aus data/media/
    ├── Tages-Jobs (Token-Verteilung, Backups) via setInterval
    └── SMTP-Client (TLS, AUTH LOGIN) für Passwort-Reset-Mails
+   │
+store.js — Speicherschicht (eingebautes node:sqlite, keine Abhängigkeiten)
    ▼
 data/ (gitignored)
-   ├── db.json          JSON-Datenbank: Nutzer, Posts, Markt, Chat, Einladungen, Statistik
-   ├── media/           Videos als Dateien (nicht in der DB)
+   ├── poolsite.db      SQLite-Datenbank (WAL): Nutzer, Posts, Markt, Chat, Einladungen, Statistik
+   ├── media/           Bilder, Avatare und Videos als Dateien (NICHT in der DB)
    ├── secret.key       Salt für E-Mail-Fingerabdrücke
    └── mail-config.json SMTP-Zugangsdaten (Gmail-App-Passwort)
 ```
+
+**Persistenz (store.js):** Die Geschäftslogik arbeitet auf einem In-Memory-Objekt `db`
+(schnellste Lesezugriffe). `saveDb()` schreibt über Änderungserkennung nur die
+tatsächlich veränderten Zeilen in eine transaktionssichere SQLite-Datei (WAL-Modus) —
+nicht mehr die ganze Datei bei jeder Aktion. Bilder, Avatare und Videos liegen als
+Dateien unter `data/media/` (nur der Pfad steht in der DB), damit die Zeilen klein und
+die Schreibvorgänge schnell bleiben. Messwert: ~0,2 ms/Schreibvorgang statt ~6 ms bei
+der früheren „ganze JSON-Datei schreiben"-Methode (~26× schneller). Eine vorhandene
+`data/db.json` wird beim ersten Start automatisch migriert (danach `db.json.migrated`).
 
 **Öffentlich erreichbar** über `cloudflared tunnel --url http://localhost:3000`
 (TryCloudflare: kostenlos, kein Account, aber die URL wechselt bei jedem Neustart).

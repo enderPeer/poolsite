@@ -8,9 +8,12 @@ const path = require('path');
 const crypto = require('crypto');
 const tls = require('tls');
 
+const store = require('./store');
+
 const ROOT = __dirname;
 const DATA_DIR = path.join(ROOT, 'data');
-const DB_FILE = path.join(DATA_DIR, 'db.json');
+const DB_FILE = path.join(DATA_DIR, 'db.json');       // Alt-Format (nur noch für die einmalige Migration)
+const SQLITE_FILE = path.join(DATA_DIR, 'poolsite.db');
 const PORT = process.env.PORT || 3000;
 
 const PRICES = { post: 0.10, comment: 0.05, like: 0.02, dislike: 0.02 };
@@ -52,8 +55,7 @@ function emailHash(email) {
   return crypto.createHash('sha256').update(SECRET + ':' + String(email).trim().toLowerCase()).digest('hex');
 }
 
-function loadDb() {
-  try { db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8')); } catch (e) { /* frische DB */ }
+function normalizeDb() {
   db.users = db.users || {}; db.posts = db.posts || []; db.sessions = db.sessions || {};
   db.events = db.events || [];
   db.stats = db.stats || {};
@@ -66,10 +68,32 @@ function loadDb() {
   // Datenschutz-Migration: Klartext-E-Mails in Fingerabdruecke umwandeln und loeschen
   for (const k of Object.keys(db.users)) {
     const u = db.users[k];
-    if (u.email) {
-      u.emailHash = emailHash(u.email);
-      delete u.email;
+    if (u.email) { u.emailHash = emailHash(u.email); delete u.email; }
+    // Medien-Auslagerung: Inline-Base64-Avatare in Dateien schreiben (einmalig, idempotent)
+    if (u.avatar && String(u.avatar).indexOf('data:') === 0) {
+      const p = saveImageFile(u.avatar, 'av'); if (p) u.avatar = p;
     }
+  }
+  for (const post of db.posts) {
+    if (post.image && String(post.image).indexOf('data:') === 0) {
+      const f = saveImageFile(post.image, 'img'); if (f) post.image = f;
+    }
+  }
+}
+
+function loadDb() {
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+  store.init(SQLITE_FILE);
+  if (store.isEmpty() && fs.existsSync(DB_FILE)) {
+    // Einmalige Migration: bestehende db.json in SQLite überführen
+    try { db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8')); } catch (e) { db = store.emptyDb(); }
+    normalizeDb();
+    store.persist(db);
+    try { fs.renameSync(DB_FILE, DB_FILE + '.migrated'); } catch (e) {}
+    console.log('[db] db.json → SQLite migriert (' + Object.keys(db.users).length + ' Nutzer, ' + db.posts.length + ' Posts).');
+  } else {
+    db = store.load();
+    normalizeDb();
   }
 }
 
@@ -81,15 +105,10 @@ function stat(field, amount, userKey) {
   if (userKey) s.act[userKey] = 1;
 }
 function dayStr(t) { return new Date(t).toISOString().slice(0, 10); }
-function saveDb() {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-  const tmp = DB_FILE + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(db));
-  fs.renameSync(tmp, DB_FILE);
-}
+function saveDb() { store.persist(db); } // schreibt nur die geänderten Zeilen nach SQLite
 loadSecret();
 loadDb();
-saveDb(); // Migration sofort persistieren (Klartext-E-Mails endgültig raus)
+saveDb(); // eventuelle Normalisierung (z. B. E-Mail-Hashing) sofort persistieren
 
 /* ---------- Helfer ---------- */
 function sha(s) { return crypto.createHash('sha256').update(s).digest('hex'); }
@@ -140,11 +159,21 @@ function saveVideo(dataUrl) {
   fs.writeFileSync(path.join(MEDIA_DIR, fname), Buffer.from(m[2], 'base64'));
   return '/media/' + fname;
 }
-function deleteVideo(videoPath) {
-  if (!videoPath) return;
-  const f = path.join(MEDIA_DIR, path.basename(videoPath));
+function saveImageFile(dataUrl, prefix) {
+  const m = String(dataUrl).match(/^data:image\/(jpeg|jpg|png|webp);base64,(.+)$/);
+  if (!m) return null;
+  if (!fs.existsSync(MEDIA_DIR)) fs.mkdirSync(MEDIA_DIR, { recursive: true });
+  const ext = m[1] === 'jpeg' ? 'jpg' : m[1];
+  const fname = newId(prefix) + '.' + ext;
+  fs.writeFileSync(path.join(MEDIA_DIR, fname), Buffer.from(m[2], 'base64'));
+  return '/media/' + fname;
+}
+function deleteMedia(p) {
+  if (!p || String(p).indexOf('/media/') !== 0) return;
+  const f = path.join(MEDIA_DIR, path.basename(p));
   try { if (fs.existsSync(f)) fs.unlinkSync(f); } catch (e) {}
 }
+const deleteVideo = deleteMedia; // Alias (löscht jede /media-Datei per Basename)
 
 function postPayload(p) {
   return {
@@ -592,7 +621,8 @@ function handleApi(req, res, pathname, body) {
   }
 
   if (pathname === '/api/me' && req.method === 'DELETE') {
-    db.posts.filter(p => p.author === key).forEach(p => deleteVideo(p.video));
+    db.posts.filter(p => p.author === key).forEach(p => { deleteMedia(p.video); deleteMedia(p.image); });
+    deleteMedia(me.avatar);
     db.posts = db.posts.filter(p => p.author !== key);
     db.posts.forEach(p => {
       p.likes = (p.likes || []).filter(x => x !== key);
@@ -690,7 +720,10 @@ function handleApi(req, res, pathname, body) {
     if (!/^data:image\/(jpeg|png|webp);base64,/.test(d) || d.length > 200000) {
       return json(res, 400, { error: 'Ungültiges oder zu großes Bild.' });
     }
-    me.avatar = d;
+    const p = saveImageFile(d, 'av'); // als Datei speichern statt inline
+    if (!p) return json(res, 400, { error: 'Bild konnte nicht gespeichert werden.' });
+    deleteMedia(me.avatar); // altes Avatarbild entfernen
+    me.avatar = p;
     saveDb();
     return json(res, 200, { me: mePayload(key) });
   }
@@ -1020,7 +1053,8 @@ function handleApi(req, res, pathname, body) {
       const d = String(body.image);
       if (!/^data:image\/(jpeg|png|webp);base64,/.test(d)) return json(res, 400, { error: 'Ungültiges Bildformat.' });
       if (d.length > MAX_IMAGE) return json(res, 400, { error: 'Bild zu groß (max. ~500 KB nach Kompression).' });
-      image = d;
+      image = saveImageFile(d, 'img'); // als Datei speichern, nur den Pfad in der DB ablegen
+      if (!image) return json(res, 400, { error: 'Bild konnte nicht gespeichert werden.' });
     }
     let video = null;
     if (body.video) {
@@ -1032,7 +1066,7 @@ function handleApi(req, res, pathname, body) {
     }
     if (!text && !image && !video) return json(res, 400, { error: 'Schreib etwas oder füge ein Bild/Video hinzu.' });
     const pay = charge(me, 'post');
-    if (!pay.ok) { deleteVideo(video); return json(res, 402, { error: pay.error }); }
+    if (!pay.ok) { deleteMedia(video); deleteMedia(image); return json(res, 402, { error: pay.error }); }
     db.posts.push({ id: newId('post'), author: key, text: text, image: image, video: video, createdAt: new Date().toISOString(), likes: [], dislikes: [], comments: [] });
     stat('posts', 1, key);
     stat('burn', PRICES.post);
@@ -1099,7 +1133,7 @@ function handleApi(req, res, pathname, body) {
     const p = db.posts.find(x => x.id === mDelP[1]);
     if (!p) return json(res, 404, { error: 'Beitrag nicht gefunden.' });
     if (p.author !== key) return json(res, 403, { error: 'Nur eigene Beiträge können gelöscht werden.' });
-    deleteVideo(p.video);
+    deleteMedia(p.video); deleteMedia(p.image);
     db.posts = db.posts.filter(x => x.id !== p.id);
     saveDb();
     return json(res, 200, { ok: true });
@@ -1176,3 +1210,6 @@ try {
 server.listen(PORT, '0.0.0.0', () => {
   console.log('PoolSite-Server läuft: http://localhost:' + PORT);
 });
+
+// Beim Beenden WAL in die Hauptdatei schreiben, damit Backups konsistent sind
+['SIGINT', 'SIGTERM'].forEach(sig => process.on(sig, () => { try { store.close(); } catch (e) {} process.exit(0); }));

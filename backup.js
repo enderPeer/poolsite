@@ -26,7 +26,9 @@ const DATA_DIR = path.join(ROOT, 'data');
 const BACKUP_DIR = path.join(ROOT, 'backups');
 const KEEP = 30; // so viele Backups aufbewahren
 
-const ITEMS = ['db.json', 'secret.key', 'mail-config.json', 'media']; // Dateien + Ordner
+// SQLite-Datei (inkl. WAL/SHM für Konsistenz), Schlüssel, Mail-Config und Medien.
+// db.json nur noch als Alt-/Migrationskopie, falls vorhanden.
+const ITEMS = ['poolsite.db', 'poolsite.db-wal', 'poolsite.db-shm', 'secret.key', 'mail-config.json', 'media', 'db.json.migrated'];
 
 function stamp() {
   // ISO-Zeit ohne Doppelpunkte (Windows-dateinamensicher), inkl. Millisekunden: 2026-07-24T13-05-09-123
