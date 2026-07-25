@@ -1,6 +1,6 @@
 /* PoolSite Service Worker — macht die App installierbar (PWA) und offline-tauglich.
    Strategie: App-Shell (HTML/CSS/JS) im Cache; API und Medien immer aus dem Netz. */
-const CACHE = 'poolsite-v2';
+const CACHE = 'poolsite-v5';
 const SHELL = [
   'index.html', 'app.html', 'feed.html', 'wallet.html', 'market.html',
   'friends.html', 'chat.html', 'stats.html', 'settings.html', 'notifications.html',
@@ -23,11 +23,10 @@ self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
-  // API und hochgeladene Medien nie cachen (immer aktuell)
-  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/media/')) {
-    e.respondWith(fetch(req).catch(() => caches.match(req)));
-    return;
-  }
+  // API, Medien und fremde Herkunft komplett am Service Worker vorbei
+  // (verhindert jede Stoerung von /api/health & Datenverkehr durch den SW)
+  if (url.origin !== self.location.origin) return;
+  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/media/')) return;
   // App-Shell: erst Netz, bei Offline aus dem Cache
   e.respondWith(
     fetch(req).then((res) => {

@@ -63,15 +63,23 @@ var PS = (function () {
     var headers = { 'Content-Type': 'application/json' };
     var token = localStorage.getItem(TOKEN_KEY);
     if (token) headers['Authorization'] = 'Bearer ' + token;
+    // Timeout, damit hängende Anfragen die UI nicht dauerhaft blockieren (großzügig für Uploads)
+    var ctrl = ('AbortController' in window) ? new AbortController() : null;
+    var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, 45000);
     return fetch(apiBase + path, {
       method: method || 'GET',
       headers: headers,
-      body: body ? JSON.stringify(body) : undefined
+      body: body ? JSON.stringify(body) : undefined,
+      signal: ctrl ? ctrl.signal : undefined
     }).then(function (r) {
+      clearTimeout(timer);
       return r.json().catch(function () { return {}; }).then(function (data) {
         if (!r.ok) throw new Error(data.error || 'Serverfehler (' + r.status + ')');
         return data;
       });
+    }).catch(function (e) {
+      clearTimeout(timer);
+      throw (e && e.name === 'AbortError') ? new Error('Zeitüberschreitung — Server nicht erreichbar.') : e;
     });
   }
 
@@ -132,6 +140,15 @@ var PS = (function () {
   }
 
   /* ---------- Öffentliche API (immer async) ---------- */
+  // Health-Check mit hartem Timeout (verhindert ewiges „Connecting…" bei toter/langsamer API)
+  function healthCheck(baseUrl) {
+    var ctrl = ('AbortController' in window) ? new AbortController() : null;
+    var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, 5000);
+    return fetch(baseUrl + '/api/health', { method: 'GET', signal: ctrl ? ctrl.signal : undefined })
+      .then(function (r) { clearTimeout(timer); return r.ok ? r.json() : null; })
+      .catch(function () { clearTimeout(timer); return null; });
+  }
+
   function init() {
     // API-Adresse aus URL-Parameter übernehmen (?api=https://xyz.trycloudflare.com)
     try {
@@ -142,13 +159,40 @@ var PS = (function () {
     apiBase = stored || '';
 
     try { setupPWA(); } catch (e) {}
-    return fetch(apiBase + '/api/health', { method: 'GET' })
-      .then(function (r) { return r.json(); })
-      .then(function (d) {
-        if (d && d.mode === 'server') { mode = 'server'; return refreshMe().then(function () { startNotifPoller(); }); }
-        mode = 'local'; cachedMe = lMe();
-      })
-      .catch(function () { mode = 'local'; cachedMe = lMe(); });
+
+    function goServer() { mode = 'server'; return refreshMe().then(function () { startNotifPoller(); }); }
+    function goLocal() { mode = 'local'; cachedMe = lMe(); }
+    function delay(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+    // Fragt die gespeicherte API UND die gleiche Herkunft parallel ab und nimmt die
+    // erste, die 'server' meldet — so blockiert eine tote/langsame API nicht.
+    function firstServer() {
+      var candidates = apiBase ? [apiBase, ''] : [''];
+      return new Promise(function (resolve) {
+        var pending = candidates.length;
+        var settled = false;
+        candidates.forEach(function (b) {
+          healthCheck(b).then(function (d) {
+            if (settled) return;
+            if (d && d.mode === 'server') { settled = true; resolve(b); }
+            else if (--pending === 0) { resolve(false); }
+          });
+        });
+      });
+    }
+
+    function adopt(base) {
+      apiBase = base;
+      if (base === '') localStorage.removeItem(API_KEY); else localStorage.setItem(API_KEY, base);
+    }
+
+    return firstServer().then(function (winner) {
+      if (winner !== false) { adopt(winner); return goServer(); }
+      return delay(700).then(firstServer).then(function (w2) { // zweiter Anlauf (SW-Wechsel etc.)
+        if (w2 !== false) { adopt(w2); return goServer(); }
+        goLocal();
+      });
+    });
   }
 
   function refreshMe() {

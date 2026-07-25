@@ -347,6 +347,7 @@ var PSI18N = (function () {
     'Mein öffentliches Profil ansehen →': 'View my public profile →',
     'Profil ansehen': 'View profile',
     'Nutzer nicht gefunden.': 'User not found.',
+    'Zeitüberschreitung — Server nicht erreichbar.': 'Timeout — server not reachable.',
 
     /* Häufige Meldungen (Client) */
     'Schreib etwas oder füge ein Bild/Video hinzu.': 'Write something or add an image/video.',
